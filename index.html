@@ -42,6 +42,10 @@
     text-transform: uppercase;
     color: var(--dim);
   }
+  .nav { display: flex; gap: 1.6em; }
+  .nav a { color: var(--dim); text-decoration: none; padding-bottom: 3px; border-bottom: 1px solid transparent; }
+  .nav a[aria-current] { color: var(--fg); border-bottom-color: var(--fg); }
+  .nav a:focus-visible { outline: 2px solid var(--ok); outline-offset: 3px; }
 
   main {
     flex: 1;
@@ -126,7 +130,12 @@
 </style>
 </head>
 <body>
-  <header>Afinador · EADGBE</header>
+  <header>
+    <nav class="nav">
+      <a href="index.html" aria-current="page">Afinador</a>
+      <a href="cifras.html">Cifras</a>
+    </nav>
+  </header>
 
   <main>
     <svg class="gauge" viewBox="0 0 200 112" aria-hidden="true">
