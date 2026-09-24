@@ -1,0 +1,417 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0e0f11">
+<meta name="description" content="Afinador de violão online — afinação padrão EADGBE.">
+<title>Afinador de Violão</title>
+<style>
+  :root {
+    --bg: #0e0f11;
+    --fg: #e8e8e6;
+    --dim: #6b6d72;
+    --faint: #25272b;
+    --ok: #4ade80;
+    --state: var(--fg);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    height: 100dvh;
+    overflow: hidden;
+    background: var(--bg);
+    color: var(--fg);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    font-variant-numeric: tabular-nums;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: space-between;
+    gap: 2dvh;
+    padding: max(16px, env(safe-area-inset-top)) 16px max(16px, env(safe-area-inset-bottom));
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  body.tuned { --state: var(--ok); }
+
+  header {
+    font-size: clamp(.7rem, 1.8dvh, .9rem);
+    letter-spacing: .25em;
+    text-transform: uppercase;
+    color: var(--dim);
+  }
+
+  main {
+    flex: 1;
+    min-height: 0;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1.5dvh;
+  }
+
+  .gauge { width: min(92vw, 520px, 62dvh); height: auto; display: block; overflow: visible; }
+  .gauge .track { stroke: var(--faint); }
+  .gauge .zone { stroke: var(--ok); opacity: .25; transition: opacity .2s; }
+  body.tuned .gauge .zone { opacity: .9; }
+  .gauge .tick { stroke: var(--dim); }
+  .gauge .tick.major { stroke: var(--fg); }
+  .gauge .end { fill: var(--dim); font-size: 9px; }
+  .gauge .needle { stroke: var(--state); transition: stroke .2s, opacity .3s; }
+  .gauge .hub { fill: var(--state); transition: fill .2s, opacity .3s; }
+
+  .note {
+    font-size: clamp(3.5rem, 17dvh, 9rem);
+    font-weight: 600;
+    line-height: 1;
+    color: var(--state);
+    transition: color .2s, text-shadow .2s;
+  }
+  .note.idle { color: var(--faint); }
+  body.tuned .note { text-shadow: 0 0 .35em rgba(74, 222, 128, .45); }
+  .note sub { font-size: .3em; font-weight: 400; color: var(--dim); vertical-align: baseline; margin-left: .05em; }
+
+  .readout {
+    display: flex;
+    gap: 1.5em;
+    font-size: clamp(.9rem, 2.6dvh, 1.25rem);
+    min-height: 1.3em;
+  }
+  .readout .cents { color: var(--state); min-width: 4.5ch; text-align: right; }
+  .readout .hz { color: var(--dim); min-width: 8ch; }
+
+  .hint {
+    font-size: clamp(.75rem, 2dvh, .95rem);
+    color: var(--dim);
+    min-height: 1.3em;
+    letter-spacing: .05em;
+  }
+  body.tuned .hint { color: var(--ok); }
+
+  .strings { display: flex; gap: clamp(6px, 1.5vw, 12px); }
+  .strings span {
+    width: clamp(34px, 6dvh, 48px);
+    aspect-ratio: 1;
+    display: grid;
+    place-items: center;
+    border: 1px solid var(--faint);
+    border-radius: 50%;
+    font-size: clamp(.8rem, 2.2dvh, 1rem);
+    color: var(--dim);
+    transition: all .2s;
+  }
+  .strings span sub { font-size: .6em; }
+  .strings span.on { border-color: var(--state); color: var(--state); }
+
+  button {
+    font: inherit;
+    font-size: clamp(.85rem, 2.2dvh, 1rem);
+    letter-spacing: .15em;
+    text-transform: uppercase;
+    color: var(--bg);
+    background: var(--fg);
+    border: 0;
+    border-radius: 999px;
+    padding: clamp(10px, 1.6dvh, 14px) 2.4em;
+    cursor: pointer;
+    transition: opacity .2s;
+  }
+  button:hover { opacity: .85; }
+  button:focus-visible { outline: 2px solid var(--ok); outline-offset: 3px; }
+  button.stop { background: transparent; color: var(--dim); box-shadow: inset 0 0 0 1px var(--faint); }
+</style>
+</head>
+<body>
+  <header>Afinador · EADGBE</header>
+
+  <main>
+    <svg class="gauge" viewBox="0 0 200 112" aria-hidden="true">
+      <path class="track" id="track" fill="none" stroke-width="2" stroke-linecap="round"/>
+      <path class="zone" id="zone" fill="none" stroke-width="6" stroke-linecap="round"/>
+      <g id="ticks"></g>
+      <g id="needle">
+        <line class="needle" x1="100" y1="105" x2="100" y2="30" stroke-width="2" stroke-linecap="round"/>
+        <circle class="hub" cx="100" cy="105" r="4"/>
+      </g>
+    </svg>
+
+    <div class="note" id="note" aria-live="polite">–</div>
+    <div class="readout">
+      <span class="cents" id="cents"></span>
+      <span class="hz" id="hz"></span>
+    </div>
+    <div class="hint" id="hint">Toque em Iniciar</div>
+  </main>
+
+  <div class="strings" id="strings"></div>
+  <button id="toggle" type="button">Iniciar</button>
+
+<script>
+(() => {
+  // ---------- Configuração ----------
+  const STRINGS = [
+    { n: 'E', o: 2, f: 82.41 },
+    { n: 'A', o: 2, f: 110.00 },
+    { n: 'D', o: 3, f: 146.83 },
+    { n: 'G', o: 3, f: 196.00 },
+    { n: 'B', o: 3, f: 246.94 },
+    { n: 'E', o: 4, f: 329.63 },
+  ];
+  // Faixa de busca (Hz). F_MAX abaixo de 2 × 329,63 impede que o 2º harmônico
+  // da corda 1 (~660 Hz) seja lido como fundamental.
+  const F_MIN = 70, F_MAX = 500;
+  const RMS_MIN = 0.01;             // limiar de volume
+  const YIN_THRESHOLD = 0.15;       // limiar do YIN (menor = mais rigoroso)
+  const IN_TUNE = 5;                // ± cents considerados afinado
+  const HOLD_MS = 700;              // mantém a leitura após o som sumir
+  const ONSET_MS = 80;              // descarta o início (ataque) de cada nota
+  const MEDIAN_N = 5;               // janela do filtro de mediana
+  const EMA_READING = 0.2;          // suavização dos valores
+  const EMA_NEEDLE = 0.3;           // suavização do ponteiro
+
+  // ---------- Mostrador ----------
+  const CX = 100, CY = 105, R = 85, SPAN = 60; // ±50 cents = ±60°
+  const $ = id => document.getElementById(id);
+  const NS = 'http://www.w3.org/2000/svg';
+  const polar = (r, deg) => {
+    const a = deg * Math.PI / 180;
+    return [CX + r * Math.sin(a), CY - r * Math.cos(a)];
+  };
+  const arc = (r, a0, a1) => {
+    const [x0, y0] = polar(r, a0), [x1, y1] = polar(r, a1);
+    return `M${x0} ${y0} A${r} ${r} 0 0 1 ${x1} ${y1}`;
+  };
+  $('track').setAttribute('d', arc(R, -SPAN, SPAN));
+  $('zone').setAttribute('d', arc(R, -IN_TUNE / 50 * SPAN, IN_TUNE / 50 * SPAN));
+  for (let c = -50; c <= 50; c += 5) {
+    const deg = c / 50 * SPAN;
+    const len = c % 50 === 0 ? 11 : c % 10 === 0 ? 7 : 4;
+    const [x1, y1] = polar(R - 5, deg), [x2, y2] = polar(R - 5 - len, deg);
+    const l = document.createElementNS(NS, 'line');
+    l.setAttribute('x1', x1); l.setAttribute('y1', y1);
+    l.setAttribute('x2', x2); l.setAttribute('y2', y2);
+    l.setAttribute('stroke-width', c % 50 === 0 ? 1.6 : 1);
+    l.setAttribute('class', 'tick' + (c % 50 === 0 ? ' major' : ''));
+    $('ticks').appendChild(l);
+  }
+  [['♭', -SPAN], ['♯', SPAN]].forEach(([s, deg]) => {
+    const [x, y] = polar(R + 9, deg);
+    const t = document.createElementNS(NS, 'text');
+    t.setAttribute('x', x); t.setAttribute('y', y + 3);
+    t.setAttribute('text-anchor', 'middle');
+    t.setAttribute('class', 'end');
+    t.textContent = s;
+    $('ticks').appendChild(t);
+  });
+  STRINGS.forEach(s => {
+    const el = document.createElement('span');
+    el.innerHTML = `${s.n}<sub>${s.o}</sub>`;
+    $('strings').appendChild(el);
+  });
+  const chips = [...$('strings').children];
+
+  // ---------- Detecção de pitch (YIN) ----------
+  function nearestString(f) {
+    let i = 0, cents = Infinity;
+    STRINGS.forEach((s, k) => {
+      const c = 1200 * Math.log2(f / s.f);
+      if (Math.abs(c) < Math.abs(cents)) { cents = c; i = k; }
+    });
+    return { i, cents };
+  }
+
+  function yin(buf, sampleRate, diff) {
+    const W = Math.floor(buf.length / 2);
+    const tauMin = Math.max(2, Math.floor(sampleRate / F_MAX));
+    const tauMax = Math.min(W - 1, Math.ceil(sampleRate / F_MIN));
+
+    // 1. Função diferença
+    for (let t = 1; t <= tauMax; t++) {
+      let sum = 0;
+      for (let j = 0; j < W; j++) {
+        const d = buf[j] - buf[j + t];
+        sum += d * d;
+      }
+      diff[t] = sum;
+    }
+    // 2. Diferença média normalizada cumulativa
+    diff[0] = 1;
+    let running = 0;
+    for (let t = 1; t <= tauMax; t++) {
+      running += diff[t];
+      diff[t] = running ? diff[t] * t / running : 1;
+    }
+    // 3. Primeiro mínimo abaixo do limiar
+    let tau = -1;
+    for (let t = tauMin; t <= tauMax; t++) {
+      if (diff[t] < YIN_THRESHOLD) {
+        while (t + 1 <= tauMax && diff[t + 1] < diff[t]) t++;
+        tau = t;
+        break;
+      }
+    }
+    if (tau < 0) return null;
+
+    // 4. Correção de oitava. O YIN pode parar no dobro do período (ressonância de
+    //    outras cordas) ou na metade (fundamental fraca, comum nas graves). Só aceita
+    //    a oitava vizinha se o sinal sustentar isso E ela cair bem mais perto de uma corda.
+    const localMin = center => {
+      const w = Math.max(2, Math.round(center * 0.03));
+      let best = -1;
+      for (let t = Math.max(tauMin, center - w); t <= Math.min(tauMax - 1, center + w); t++)
+        if (best < 0 || diff[t] < diff[best]) best = t;
+      return best;
+    };
+    const dist = t => Math.abs(nearestString(sampleRate / t).cents);
+    let chosen = tau;
+    const half = localMin(Math.round(tau / 2));
+    if (half > 0 && diff[half] < 0.4 && dist(half) + 100 < dist(chosen)) chosen = half;
+    const dbl = localMin(tau * 2);
+    if (chosen === tau && dbl > 0 && diff[tau] > 0.01 && diff[dbl] < 0.6 * diff[tau] &&
+        dist(dbl) + 100 < dist(chosen)) chosen = dbl;
+    tau = chosen;
+
+    // 5. Interpolação parabólica
+    const x0 = diff[tau - 1], x1 = diff[tau], x2 = tau < tauMax ? diff[tau + 1] : x1;
+    const denom = x0 + x2 - 2 * x1;
+    const refined = denom ? tau + (x0 - x2) / (2 * denom) : tau;
+    return sampleRate / refined;
+  }
+
+  const median = arr => {
+    const s = [...arr].sort((a, b) => a - b);
+    const m = s.length >> 1;
+    return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+  };
+
+  // ---------- Estado ----------
+  let ctx, stream, analyser, buf, diff, rafId, wakeLock;
+  let running = false, active = false;
+  let lastValid = 0, curString = -1, onsetAt = 0, wasLoud = false;
+  let cents = 0, hz = 0, needle = 0;
+  const hist = [];
+
+  function loop(now) {
+    rafId = requestAnimationFrame(loop);
+    analyser.getFloatTimeDomainData(buf);
+
+    let rms = 0;
+    for (let i = 0; i < buf.length; i++) rms += buf[i] * buf[i];
+    rms = Math.sqrt(rms / buf.length);
+
+    // Ignora o ataque da palhetada, que é ruidoso e gera leituras falsas
+    const loud = rms > RMS_MIN;
+    if (loud && !wasLoud) onsetAt = now;
+    wasLoud = loud;
+    const f = loud && now - onsetAt > ONSET_MS ? yin(buf, ctx.sampleRate, diff) : null;
+
+    if (f && f >= F_MIN && f <= F_MAX) {
+      hist.push(f);
+      if (hist.length > MEDIAN_N) hist.shift();
+      const m = median(hist);
+      const { i: best, cents: bestCents } = nearestString(m);
+
+      if (!active || best !== curString) {
+        curString = best; cents = bestCents; hz = m;
+      } else {
+        cents += (bestCents - cents) * EMA_READING;
+        hz += (m - hz) * EMA_READING;
+      }
+      active = true;
+      lastValid = now;
+    } else if (active && now - lastValid > HOLD_MS) {
+      active = false;
+      hist.length = 0;
+    }
+
+    const target = active ? Math.max(-50, Math.min(50, cents)) : 0;
+    needle += (target - needle) * EMA_NEEDLE;
+    render();
+  }
+
+  function render() {
+    const tuned = active && Math.abs(cents) <= IN_TUNE;
+    document.body.classList.toggle('tuned', tuned);
+
+    $('needle').setAttribute('transform', `rotate(${needle / 50 * SPAN} ${CX} ${CY})`);
+    $('needle').style.opacity = active ? 1 : .3;
+
+    chips.forEach((el, i) => el.classList.toggle('on', active && i === curString));
+
+    if (active) {
+      const s = STRINGS[curString];
+      const c = Math.round(cents);
+      $('note').classList.remove('idle');
+      $('note').innerHTML = `${s.n}<sub>${s.o}</sub>`;
+      $('cents').textContent = `${c > 0 ? '+' : ''}${c} ¢`;
+      $('hz').textContent = `${hz.toFixed(1)} Hz`;
+      $('hint').textContent = tuned ? 'Afinado' : cents < 0 ? 'Apertar ↑' : 'Afrouxar ↓';
+    } else {
+      $('note').textContent = '–';
+      $('note').classList.add('idle');
+      $('cents').textContent = '';
+      $('hz').textContent = '';
+      $('hint').textContent = running ? 'Toque uma corda' : 'Toque em Iniciar';
+    }
+  }
+
+  async function start() {
+    if (!navigator.mediaDevices?.getUserMedia) {
+      $('hint').textContent = 'Microfone indisponível (use HTTPS)';
+      return;
+    }
+    ctx = new (window.AudioContext || window.webkitAudioContext)();
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
+      });
+    } catch {
+      ctx.close();
+      $('hint').textContent = 'Permissão do microfone negada';
+      return;
+    }
+    await ctx.resume();
+
+    const src = ctx.createMediaStreamSource(stream);
+    const hp = ctx.createBiquadFilter();
+    hp.type = 'highpass'; hp.frequency.value = 60;
+    const lp = ctx.createBiquadFilter();
+    lp.type = 'lowpass'; lp.frequency.value = 1200;
+    analyser = ctx.createAnalyser();
+    analyser.fftSize = ctx.sampleRate > 50000 ? 8192 : 4096;
+    src.connect(hp).connect(lp).connect(analyser);
+
+    buf = new Float32Array(analyser.fftSize);
+    diff = new Float32Array((analyser.fftSize >> 1) + 1);
+
+    try { wakeLock = await navigator.wakeLock?.request('screen'); } catch {}
+
+    running = true;
+    $('toggle').textContent = 'Parar';
+    $('toggle').classList.add('stop');
+    rafId = requestAnimationFrame(loop);
+  }
+
+  function stop() {
+    cancelAnimationFrame(rafId);
+    stream?.getTracks().forEach(t => t.stop());
+    ctx?.close();
+    wakeLock?.release().catch(() => {});
+    running = active = false;
+    hist.length = 0;
+    needle = 0;
+    $('toggle').textContent = 'Iniciar';
+    $('toggle').classList.remove('stop');
+    render();
+  }
+
+  $('toggle').addEventListener('click', () => (running ? stop() : start()));
+  render();
+})();
+</script>
+</body>
+</html>
