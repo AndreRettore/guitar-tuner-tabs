@@ -62,3 +62,7 @@ C  G  D  Em
 Formato do texto: `# Título` cria uma seção, `[Acorde]` no meio da letra posiciona o acorde acima da sílaba, uma linha só com acordes é exibida como sequência, e linhas que começam com `E|`, `B|` etc. são exibidas como tablatura.
 
 O tom transposto, o tamanho do texto e a velocidade da rolagem ficam salvos no navegador.
+
+## Licença
+
+O código está sob a [licença MIT](LICENSE). As cifras em `musicas.js` (acordes, estrutura e letras) pertencem aos respectivos autores e não são cobertas por essa licença; cada música traz o link da fonte.
