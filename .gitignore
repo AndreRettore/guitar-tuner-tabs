@@ -1,5 +1,9 @@
-# Cifras com letra: ficam só neste computador
-musicas_pink_floyd.js
+# Cifras originais, com letra: ficam só neste computador.
+# Vai para o GitHub apenas musicas/criptografadas/ (gerada pelo site ou por criptografar.js).
+musicas/originais/
+# Proteção extra: qualquer arquivo solto em musicas/ (fora de criptografadas/) também fica de fora
+musicas/*
+!musicas/criptografadas/
 
 # Arquivos do macOS
 .DS_Store

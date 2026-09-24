@@ -63,6 +63,31 @@ Formato do texto: `# Título` cria uma seção, `[Acorde]` no meio da letra posi
 
 O tom transposto, o tamanho do texto e a velocidade da rolagem ficam salvos no navegador.
 
+### Cifras privadas (com senha)
+
+As cifras com letra ficam em duas pastas:
+
+```
+musicas/
+  criptografadas/   artista-musica.enc.js + indice.js   → vão para o GitHub
+  originais/        artista-musica.js (com letra)       → ficam só no computador
+```
+
+O `.gitignore` deixa passar apenas `musicas/criptografadas/`: a pasta `originais/`, e qualquer arquivo solto em `musicas/`, nunca é enviado. Sem a senha, o conteúdo dos `.enc.js` é ilegível. O `indice.js` guarda título e artista em texto aberto: com a página bloqueada, todas as músicas aparecem na lista, e abrir uma protegida pede a senha. Músicas que também existem no `musicas.js` (como Wish You Were Here) abrem a versão pública enquanto a página está bloqueada.
+
+**Adicionar uma música (direto no site):**
+
+1. Rode o site em `localhost` e abra **+ Importar** na página de cifras.
+2. Preencha os campos, cole a cifra e digite a senha.
+3. Clique em **Criptografar e salvar** e escolha a pasta `musicas/` do projeto (Chrome ou Edge). O site grava a versão criptografada em `criptografadas/` e o original em `originais/`. Em outros navegadores os arquivos vão para Downloads e precisam ser movidos para essas pastas.
+4. Faça commit e push de `musicas/criptografadas/`.
+
+Todas as músicas usam a mesma senha. Deixe marcado **Salvar também o original**: sem o original, não há como trocar a senha daquela música.
+
+**Abrir no site:** clique numa música protegida (ou em **Desbloquear**) e digite a senha. As versões privadas substituem as públicas de mesmo id. **Lembrar neste aparelho** guarda só a chave no navegador, nunca a senha.
+
+**Trocar a senha de todas:** rode `node criptografar.js`. Ele recriptografa todos os originais de `musicas/originais/` com a nova senha, e só roda se todas as músicas tiverem o original (senão para, sem apagar nada). Se esquecer a senha, não há como recuperar os `.enc.js`: guarde os originais com backup.
+
 ## Licença
 
 O código está sob a [licença MIT](LICENSE). As cifras em `musicas.js` (acordes, estrutura e letras) pertencem aos respectivos autores e não são cobertas por essa licença; cada música traz o link da fonte.
