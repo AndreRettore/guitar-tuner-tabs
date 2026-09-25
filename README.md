@@ -5,6 +5,20 @@ Site para violão em HTML, CSS e JavaScript puros — sem bibliotecas. Duas pág
 - `index.html` — afinador em afinação padrão (E A D G B E)
 - `cifras.html` — cifras com transposição de tom, diagramas de acordes, tamanho de texto e rolagem automática
 
+## Estrutura
+
+```
+index.html                página do afinador
+cifras.html               página de cifras
+musicas.js                cifras públicas
+img/                      ícones do site e imagem de compartilhamento
+scripts/
+  criptografar.js         recriptografa as cifras privadas (troca de senha)
+musicas/
+  criptografadas/         cifras privadas criptografadas + indice.js (vão para o GitHub)
+  originais/              cifras privadas com letra (ficam só no computador)
+```
+
 ## Afinador
 
 - Captura o microfone com a Web Audio API (`getUserMedia` + `AnalyserNode`).
@@ -86,7 +100,7 @@ Todas as músicas usam a mesma senha. Deixe marcado **Salvar também o original*
 
 **Abrir no site:** clique numa música protegida (ou em **Desbloquear**) e digite a senha. As versões privadas substituem as públicas de mesmo id. **Lembrar neste aparelho** guarda só a chave no navegador, nunca a senha.
 
-**Trocar a senha de todas:** rode `node criptografar.js`. Ele recriptografa todos os originais de `musicas/originais/` com a nova senha, e só roda se todas as músicas tiverem o original (senão para, sem apagar nada). Se esquecer a senha, não há como recuperar os `.enc.js`: guarde os originais com backup.
+**Trocar a senha de todas:** rode `node scripts/criptografar.js`. Ele recriptografa todos os originais de `musicas/originais/` com a nova senha, e só roda se todas as músicas tiverem o original (senão para, sem apagar nada). Se esquecer a senha, não há como recuperar os `.enc.js`: guarde os originais com backup.
 
 ## Licença
 

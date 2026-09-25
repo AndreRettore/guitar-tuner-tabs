@@ -2,7 +2,7 @@
 /*
   Criptografa as cifras privadas (com letra) para publicar sem expor o conteúdo.
 
-  Uso:  node criptografar.js
+  Uso:  node scripts/criptografar.js
 
   Lê os originais em musicas/originais/*.js (um por música, com letra; a pasta
   inteira fica fora do git) e gera em musicas/criptografadas/:
@@ -28,8 +28,8 @@ const crypto = require('crypto');
 const readline = require('readline');
 
 const ITERACOES = 600000;
-const ORIGINAIS = path.join(__dirname, 'musicas', 'originais');
-const CRIPTOGRAFADAS = path.join(__dirname, 'musicas', 'criptografadas');
+const ORIGINAIS = path.join(__dirname, '..', 'musicas', 'originais');
+const CRIPTOGRAFADAS = path.join(__dirname, '..', 'musicas', 'criptografadas');
 const INDICE = 'indice.js';
 const GERADO = '// Gerado automaticamente (site de cifras ou criptografar.js); não edite à mão.\n';
 
