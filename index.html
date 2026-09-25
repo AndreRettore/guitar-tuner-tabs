@@ -182,7 +182,9 @@
   // Faixa de busca (Hz). F_MAX abaixo de 2 × 329,63 impede que o 2º harmônico
   // da corda 1 (~660 Hz) seja lido como fundamental.
   const F_MIN = 70, F_MAX = 500;
-  const RMS_MIN = 0.01;             // limiar de volume
+  const RMS_FLOOR = 0.0015;         // volume mínimo absoluto (~ -56 dBFS)
+  const NOISE_MARGIN = 3;           // o som precisa estar ~10 dB acima do ruído ambiente
+  const NOISE_RISE = 0.2;           // quanto o ruído estimado pode subir por segundo (20%)
   const YIN_THRESHOLD = 0.15;       // limiar do YIN (menor = mais rigoroso)
   const IN_TUNE = 5;                // ± cents considerados afinado
   const HOLD_MS = 700;              // mantém a leitura após o som sumir
@@ -310,7 +312,7 @@
   let ctx, stream, analyser, buf, diff, rafId, wakeLock;
   let running = false, active = false;
   let lastValid = 0, curString = -1, onsetAt = 0, wasLoud = false;
-  let cents = 0, hz = 0, needle = 0;
+  let cents = 0, hz = 0, needle = 0, noise = 0, lastFrame = 0;
   const hist = [];
 
   function loop(now) {
@@ -321,8 +323,16 @@
     for (let i = 0; i < buf.length; i++) rms += buf[i] * buf[i];
     rms = Math.sqrt(rms / buf.length);
 
+    // Ruído de fundo: desce rápido quando o ambiente fica mais silencioso e sobe
+    // devagar, para que uma nota sustentada não seja confundida com ruído.
+    const dt = lastFrame ? Math.min(0.1, (now - lastFrame) / 1000) : 0;
+    lastFrame = now;
+    if (!noise) noise = rms;
+    else if (rms < noise) noise += (rms - noise) * 0.2;
+    else noise *= 1 + NOISE_RISE * dt;
+
     // Ignora o ataque da palhetada, que é ruidoso e gera leituras falsas
-    const loud = rms > RMS_MIN;
+    const loud = rms > Math.max(RMS_FLOOR, noise * NOISE_MARGIN);
     if (loud && !wasLoud) onsetAt = now;
     wasLoud = loud;
     const f = loud && now - onsetAt > ONSET_MS ? yin(buf, ctx.sampleRate, diff) : null;
@@ -409,6 +419,7 @@
     try { wakeLock = await navigator.wakeLock?.request('screen'); } catch {}
 
     running = true;
+    noise = lastFrame = 0;
     $('toggle').textContent = 'Parar';
     $('toggle').classList.add('stop');
     rafId = requestAnimationFrame(loop);
