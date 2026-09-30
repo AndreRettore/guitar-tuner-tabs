@@ -17,6 +17,7 @@ scripts/
 musicas/
   criptografadas/         cifras privadas criptografadas + indice.js (vão para o GitHub)
   originais/              cifras privadas com letra (ficam só no computador)
+  fila.js                 fila da importação em lote (fica só no computador)
 ```
 
 ## Afinador
@@ -95,6 +96,22 @@ O `.gitignore` deixa passar apenas `musicas/criptografadas/`: a pasta `originais
 2. Preencha os campos, cole a cifra e digite a senha.
 3. Clique em **Criptografar e salvar** e escolha a pasta `musicas/` do projeto (Chrome ou Edge). O site grava a versão criptografada em `criptografadas/` e o original em `originais/`. Em outros navegadores os arquivos vão para Downloads e precisam ser movidos para essas pastas.
 4. Faça commit e push de `musicas/criptografadas/`.
+
+**Adicionar várias músicas (importação em lote):**
+
+1. Liste as músicas em `musicas/fila.js` (fica só no computador, como os originais):
+   ```js
+   window.MUSICAS_FILA = [
+     { titulo: 'Wonderwall', artista: 'Oasis', fonte: 'https://www.cifraclub.com.br/oasis/wonderwall/' },
+   ];
+   ```
+2. Rode o site em `localhost`, no Chrome ou no Edge, e abra **+ Importar** → **importação em lote** (`cifras.html#lote`).
+3. Arraste o botão **Pegar cifra** para a barra de favoritos (só na primeira vez).
+4. Digite a senha, clique em **Escolher pasta** e escolha a pasta `musicas/`. Depois clique em **Abrir próxima**.
+5. Em cada página de cifra que abrir, clique no favorito **Pegar cifra**. A música é convertida, criptografada e salva, e a aba passa sozinha para a próxima. A lista mostra quais já foram salvas.
+6. No fim, faça commit e push de `musicas/criptografadas/`.
+
+Se a aba não conseguir falar com a página de importação, o favorito copia a cifra. Nesse caso, volte à importação em lote e cole com ⌘V (ou Ctrl+V).
 
 Todas as músicas usam a mesma senha. Deixe marcado **Salvar também o original**: sem o original, não há como trocar a senha daquela música.
 

@@ -111,6 +111,7 @@
   .notice button { color: var(--chord); text-decoration: underline; font-size: inherit; }
 
   /* ---------- Importar ---------- */
+  .artist a { color: var(--chord); }
   .artist code { font-family: ui-monospace, Menlo, Consolas, monospace; color: var(--fg); font-size: .9em; }
   .imp { display: flex; flex-direction: column; gap: 14px; padding: 12px 24px 0; }
   .fields { display: grid; grid-template-columns: 2fr 2fr 1fr; gap: 12px; }
@@ -163,6 +164,22 @@
     color: var(--dim);
   }
   .imp-h { font-size: .8rem; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--dim); margin-top: 8px; }
+  .imp-enc-row button + button { background: var(--panel); color: var(--fg); border: 1px solid var(--faint); }
+
+  /* ---------- Importar em lote ---------- */
+  .passos { display: flex; flex-direction: column; gap: 6px; padding-left: 1.2em; color: var(--dim); line-height: 1.5; font-size: .9rem; }
+  .passos b { color: var(--fg); font-weight: 600; }
+  .fav { padding: 2px 10px; border: 1px dashed var(--chord); border-radius: 6px; color: var(--chord); text-decoration: none; cursor: grab; white-space: nowrap; }
+  .fila { padding: 8px 24px 40vh; }
+  .fila ul { list-style: none; }
+  .fila-h { padding: 8px 0; font-size: .8rem; color: var(--dim); letter-spacing: .05em; }
+  .fila li { display: flex; align-items: baseline; gap: 12px; padding: 8px 0 8px 10px; border-bottom: 1px solid var(--faint); border-left: 2px solid transparent; }
+  .fila li.atual { border-left-color: var(--chord); }
+  .fila li button { flex: 1; text-align: left; }
+  .fila li button:disabled { cursor: default; }
+  .fila li button span { color: var(--dim); font-size: .85rem; margin-left: 8px; }
+  .fila li em { font-style: normal; font-size: .8rem; color: var(--dim); white-space: nowrap; }
+  .fila li a { color: var(--chord); font-size: .8rem; }
   #songs { list-style: none; overflow-y: auto; flex: 1; padding-bottom: 16px; }
   #songs a {
     display: block;
@@ -265,6 +282,7 @@
     .diagrams { padding: 16px 16px 0; }
     .sheet { padding: 16px 16px 40vh; }
     .imp { padding: 12px 16px 0; }
+    .fila { padding: 8px 16px 40vh; }
     .locked { padding: 16px; }
     .fields { grid-template-columns: 1fr 1fr; }
   }
@@ -317,7 +335,8 @@
   const SHARP = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
   const FLAT = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
   const NOTE = n => { const i = SHARP.indexOf(n); return i >= 0 ? i : FLAT.indexOf(n); };
-  const CHORD_RE = /^([A-G][#b]?)((?:m|maj|min|dim|aug|sus|add|M|[0-9]|[#b+°ø()\-])*)(?:\/([A-G][#b]?))?$/;
+  // O sufixo aceita "/9" como em D6/9 e E7/9; a barra seguida de nota é o baixo (D/F#)
+  const CHORD_RE = /^([A-G][#b]?)((?:m|maj|min|dim|aug|sus|add|M|\/[0-9]+|[0-9]|[#b+°ºø()\-])*)(?:\/([A-G][#b]?))?$/;
   const isChord = t => CHORD_RE.test(t);
 
   function transpose(name, shift, flats) {
@@ -469,6 +488,25 @@
   const slug = s => norm(s).replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
   const literal = s => s.replace(/\\/g, '\\\\').replace(/`/g, '\\`').replace(/\$\{/g, '\\${');
 
+  // Monta a música e o arquivo original (formato do musicas.js) a partir do texto copiado do site de cifras
+  function buildSong({ titulo, artista, tom, fonte, texto }) {
+    const { text, tom: detectado } = convert(texto);
+    const song = { id: slug(titulo), titulo, artista, tom: tom || detectado || 'C' };
+    // Mesmo título de outro artista: inclui o artista no id. Mesmo título e artista: é a mesma música.
+    const same = MUSICAS.find(m => m.id === song.id);
+    if (same && slug(same.artista) !== slug(artista)) song.id = slug(artista + ' ' + titulo);
+    const original = `window.MUSICAS = [\n  {\n    id: ${JSON.stringify(song.id)},\n    titulo: ${JSON.stringify(titulo)},\n` +
+      `    artista: ${JSON.stringify(artista)},\n    tom: ${JSON.stringify(song.tom)},\n` +
+      (fonte ? `    fonte: ${JSON.stringify(fonte)},\n` : '') +
+      `    cifra: \`\n${literal(text)}\n\`,\n  },\n];\n`;
+    return {
+      song: { ...song, ...(fonte ? { fonte } : {}), cifra: text },
+      base: slug(artista + ' ' + titulo),
+      original,
+      detectado,
+    };
+  }
+
   function renderImporter() {
     $('song').innerHTML = `
       <div class="song-head">
@@ -476,7 +514,8 @@
         <h1>Importar cifra</h1>
         <p class="artist">No site de cifras, selecione a cifra do primeiro trecho até o fim, copie e cole abaixo.
           Depois clique em <b>Criptografar e salvar</b> e escolha a pasta <code>musicas/</code> do projeto:
-          a versão criptografada vai para <code>musicas/criptografadas/</code> e o original para <code>musicas/originais/</code>.</p>
+          a versão criptografada vai para <code>musicas/criptografadas/</code> e o original para <code>musicas/originais/</code>.
+          Várias músicas de uma vez? Use a <a href="#lote">importação em lote</a>.</p>
       </div>
       <div class="imp">
         <div class="fields">
@@ -508,29 +547,21 @@
 
     let fileName = '', built = null;
     const update = () => {
-      const { text, tom } = convert($('iTexto').value);
-      $('iTom').placeholder = tom || 'ex.: G';
-      const titulo = $('iTitulo').value.trim() || 'Sem título';
-      const artista = $('iArtista').value.trim() || 'Desconhecido';
       const fonte = $('iFonte').value.trim();
-      const song = { id: slug(titulo), titulo, artista, tom: $('iTom').value.trim() || tom || 'C' };
-      // Mesmo título de outro artista: inclui o artista no id. Mesmo título e artista: é a mesma música.
-      const same = MUSICAS.find(m => m.id === song.id);
-      if (same && slug(same.artista) !== slug(artista)) song.id = slug(artista + ' ' + titulo);
-      fileName = slug(artista + ' ' + titulo) + '.js';
-      const exists = MUSICAS.some(m => m.id === song.id && m.privada);
+      built = buildSong({
+        titulo: $('iTitulo').value.trim() || 'Sem título',
+        artista: $('iArtista').value.trim() || 'Desconhecido',
+        tom: $('iTom').value.trim(),
+        fonte,
+        texto: $('iTexto').value,
+      });
+      $('iTom').placeholder = built.detectado || 'ex.: G';
+      fileName = built.base + '.js';
+      const exists = MUSICAS.some(m => m.id === built.song.id && m.privada);
       $('iAviso').textContent = `musicas/originais/${fileName}` +
         (exists ? ' (já existe: substitui a versão atual)' : fonte ? '' : ' — falta o link da fonte');
-      $('iCodigo').textContent = `window.MUSICAS = [\n  {\n    id: ${JSON.stringify(song.id)},\n    titulo: ${JSON.stringify(titulo)},\n` +
-        `    artista: ${JSON.stringify(artista)},\n    tom: ${JSON.stringify(song.tom)},\n` +
-        (fonte ? `    fonte: ${JSON.stringify(fonte)},\n` : '') +
-        `    cifra: \`\n${literal(text)}\n\`,\n  },\n];\n`;
-      built = {
-        song: { ...song, ...(fonte ? { fonte } : {}), cifra: text },
-        base: fileName.replace(/\.js$/, ''),
-        original: $('iCodigo').textContent,
-      };
-      $('iPrevia').innerHTML = text ? renderSheet(text, 0, false, []) : '';
+      $('iCodigo').textContent = built.original;
+      $('iPrevia').innerHTML = built.song.cifra ? renderSheet(built.song.cifra, 0, false, []) : '';
     };
     ['iTitulo', 'iArtista', 'iTom', 'iFonte', 'iTexto'].forEach(id => $(id).addEventListener('input', update));
     $('iCopiar').addEventListener('click', async () => {
@@ -665,12 +696,15 @@
     const id = decodeURIComponent(location.hash.slice(1));
     const prev = current;
     current = MUSICAS.find(m => m.id === id) || null;
-    const importing = id === 'importar';
-    $('app').classList.toggle('viewing', !!current || importing);
-    document.title = current ? `${current.titulo} · ${current.artista} — Cifras` : importing ? 'Importar cifra — Cifras' : 'Cifras';
+    const importing = id === 'importar', batch = id === 'lote';
+    $('app').classList.toggle('viewing', !!current || importing || batch);
+    document.title = current ? `${current.titulo} · ${current.artista} — Cifras`
+      : importing ? 'Importar cifra — Cifras' : batch ? 'Importar em lote — Cifras' : 'Cifras';
     renderList();
     // O importador não é redesenhado se já estiver aberto, para não perder o texto colado
-    if (importing) { stopScroll(); if (!$('iTexto')) renderImporter(); } else renderSong();
+    if (importing) { stopScroll(); if (!$('iTexto')) renderImporter(); }
+    else if (batch) { stopScroll(); if ($('lFila')) paintBatch(); else renderBatch(); }
+    else renderSong();
     if (current !== prev) $('song').scrollTop = 0;
   }
 
@@ -842,6 +876,36 @@
     }
   }
   const indexFile = ind => GERADO + `window.MUSICAS_CRIPTO = ${JSON.stringify(ind, null, 2)};\n`;
+  const parseIndex = text => { const w = {}; new Function('window', text)(w); return w.MUSICAS_CRIPTO || null; };
+
+  // O navegador pode ter usado um indice.js antigo do cache. Antes de regravar o índice, junta as
+  // músicas que já estão no da pasta, para nenhuma sumir da lista.
+  async function mergeDiskIndex(dir, ind) {
+    let text;
+    try {
+      const pasta = await dir.getDirectoryHandle('criptografadas');
+      text = await (await (await pasta.getFileHandle('indice.js')).getFile()).text();
+    } catch { return ind; } // ainda não existe
+    const disco = parseIndex(text);
+    if (!disco) return ind;
+    if (disco.salt !== ind.salt) throw new Error('O índice da pasta usa outra senha. Recarregue a página (⌘⇧R) e tente de novo.');
+    const arquivos = new Set(entradas(ind).map(e => e.arquivo));
+    return { ...ind, musicas: [...entradas(ind), ...entradas(disco).filter(e => !arquivos.has(e.arquivo))] };
+  }
+
+  // O servidor local não diz ao navegador para não guardar o indice.js, e a lista ficaria sem as
+  // músicas novas: relê o índice sem cache (só por http/https; abrindo o arquivo direto, vale o carregado)
+  async function refreshIndex() {
+    if (!/^https?:$/.test(location.protocol)) return;
+    try {
+      const r = await fetch('musicas/criptografadas/indice.js', { cache: 'no-cache' });
+      const ind = r.ok && parseIndex(await r.text());
+      if (!ind || JSON.stringify(ind) === JSON.stringify(CRIPTO)) return;
+      CRIPTO = window.MUSICAS_CRIPTO = ind;
+      loading = null; // carrega os .enc.js do índice novo
+      if (privKey) await unlockWith(privKey); else applyPrivate();
+    } catch {}
+  }
 
   const download = (name, text) => {
     const a = Object.assign(document.createElement('a'),
@@ -852,8 +916,9 @@
 
   // Criptografa uma música e grava em musicas/criptografadas/ (e o original em musicas/originais/)
   // (Chrome/Edge); nos outros navegadores os arquivos vão para Downloads.
-  async function encryptAndSave({ song, base, original, senha }) {
-    const dir = await pickDir();
+  // A importação em lote passa a pasta já escolhida (dir); sem ela, pede a pasta agora.
+  async function encryptAndSave({ song, base, original, senha }, dir) {
+    if (dir === undefined) dir = await pickDir();
 
     let key = privKey;
     let indice = CRIPTO;
@@ -869,6 +934,7 @@
     const data = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, new TextEncoder().encode(JSON.stringify(song)));
     const payload = { iv: toB64(iv), data: toB64(data) };
     const encName = base + '.enc.js';
+    if (dir) indice = await mergeDiskIndex(dir, indice);
     indice = indexWithNames(indice, [{ arquivo: encName, id: song.id, titulo: song.titulo, artista: song.artista }]);
 
     const files = {
@@ -923,7 +989,7 @@
     const msg = $('idxMsg');
     try {
       const dir = await pickDir();
-      const ind = indexWithNames(CRIPTO);
+      const ind = indexWithNames(dir ? await mergeDiskIndex(dir, CRIPTO) : CRIPTO);
       await writeFiles(dir, { 'criptografadas/indice.js': indexFile(ind) });
       CRIPTO = window.MUSICAS_CRIPTO = ind;
       msg.textContent = dir ? '' : 'Mova o indice.js baixado para a pasta musicas/criptografadas/.';
@@ -933,8 +999,224 @@
     }
   });
 
+  // ---------- Importar em lote ----------
+  // A fila vem de musicas/fila.js (título, artista e link; fica só no computador). A página da cifra
+  // abre numa aba nossa; lá, o favorito "Pegar cifra" manda o texto de volta para cá, onde a música é
+  // convertida, criptografada e gravada, e a aba segue para a próxima da fila.
+
+  // Roda na página do site de cifras (vira o favorito): não pode usar nada de fora da função.
+  // Sem comentários de linha dentro dela, por segurança, já que o código vira um link.
+  // Lê o textContent, e não o innerText: o Cifra Club só desenha parte da cifra por vez, e o
+  // innerText vinha cortado. O tom vem de "Tom: X"; com capotraste, vale o da forma dos acordes,
+  // que é o dos acordes escritos. Se a aba não foi aberta pela fila, copia a cifra para colar aqui.
+  function grabCifra() {
+    const pres = [...document.querySelectorAll('.cifra_cnt pre')];
+    const alvo = pres.length ? pres
+      : [...document.querySelectorAll('pre')].sort((a, b) => b.querySelectorAll('b').length - a.querySelectorAll('b').length).slice(0, 1);
+    const texto = alvo.map(p => {
+      const c = p.cloneNode(true);
+      c.querySelectorAll('button, svg, script, style, template, img').forEach(e => e.remove());
+      return c.textContent;
+    }).join('\n');
+    if (!texto.trim()) return alert('Não achei a cifra nesta página.');
+    const pagina = document.body.innerText;
+    const antigo = ((document.querySelector('#cifra_tom') || {}).innerText || '').match(/[A-G][#b]?m?(?![\w#])/);
+    const forma = pagina.match(/forma dos acordes no tom de\s*([A-G][#b]?m?)(?![\w#])/i);
+    const rotulo = pagina.match(/\btom:\s*([A-G][#b]?m?)(?![\w#])/i);
+    const tom = forma ? forma[1] : antigo ? antigo[0] : rotulo ? rotulo[1] : '';
+    const dados = { tipo: 'cifra-lote', url: location.href, tom, texto };
+    const aviso = t => {
+      const d = document.createElement('div');
+      d.textContent = t;
+      d.style.cssText = 'position:fixed;top:16px;left:50%;transform:translateX(-50%);z-index:2147483647;padding:12px 20px;' +
+        'border-radius:8px;background:#15171a;color:#f5a524;font:600 15px system-ui,sans-serif;box-shadow:0 4px 20px #0008';
+      document.body.appendChild(d);
+    };
+    if (window.opener) { window.opener.postMessage(dados, '*'); aviso('Cifra enviada. Salvando…'); return; }
+    navigator.clipboard.writeText(JSON.stringify(dados)).then(
+      () => aviso('Cifra copiada. Volte à importação em lote e cole (⌘V / Ctrl+V).'),
+      () => alert('Não consegui copiar a cifra.'));
+  }
+  const BOOKMARKLET = 'javascript:' + encodeURIComponent(`(${grabCifra})()`);
+
+  const batch = { loaded: false, dir: null, senha: '', tab: null, at: -1, msg: '', chain: Promise.resolve(), redo: false, redone: new Set() };
+  const queue = () => window.MUSICAS_FILA || [];
+  const encFile = m => slug(`${m.artista} ${m.titulo}`) + '.enc.js';
+  const savedEntry = m => entradas().find(e => e.arquivo === encFile(m));
+  // Refazendo, contam como feitas só as salvas desde que a opção foi marcada
+  const isDone = i => batch.redo ? batch.redone.has(i) : !!savedEntry(queue()[i]);
+  // Próxima música ainda não feita depois da posição i (dando a volta na fila)
+  const nextPending = (i = -1) => {
+    const n = queue().length;
+    for (let k = 1; k <= n; k++) { const j = (i + k + n) % n; if (!isDone(j)) return j; }
+    return -1;
+  };
+  // Compara links sem www, barra final, parâmetros e âncora
+  const samePage = (a, b) => {
+    const key = u => { try { const x = new URL(u); return x.hostname.replace(/^www\./, '') + x.pathname.replace(/\/+$/, ''); } catch { return u; } };
+    return key(a) === key(b);
+  };
+
+  function renderBatch() {
+    $('song').innerHTML = `
+      <div class="song-head">
+        <button class="back" data-act="back">← Músicas</button>
+        <h1>Importar em lote</h1>
+        <p class="artist">Salva as músicas de <code>musicas/fila.js</code> uma por vez, criptografadas, sem copiar e colar.
+          Funciona no Chrome ou no Edge, com o site aberto em <code>localhost</code>.</p>
+      </div>
+      <div class="imp">
+        <ol class="passos">
+          <li>Arraste <a class="fav" id="lFav" href="${esc(BOOKMARKLET)}">Pegar cifra</a> para a barra de favoritos (só na primeira vez).</li>
+          <li>Digite a senha, clique em <b>Escolher pasta</b> e escolha a pasta <code>musicas/</code> do projeto.</li>
+          <li>Clique em <b>Abrir próxima</b>. Na página da cifra, clique no favorito <b>Pegar cifra</b>:
+            a música é salva aqui e a aba passa sozinha para a próxima da fila.</li>
+        </ol>
+        <div class="imp-enc">
+          <div class="imp-enc-row">
+            <input id="lSenha" type="password" placeholder="Senha das cifras privadas" autocomplete="current-password">
+            <span id="lSenhaInfo" hidden>Usando a senha já desbloqueada</span>
+            <button id="lPasta" type="button">Escolher pasta</button>
+            <button id="lAbrir" type="button">Abrir próxima</button>
+          </div>
+          <label class="remember"><input type="checkbox" id="lRefazer"> Refazer também as já salvas (substitui a versão atual)</label>
+          <span class="imp-msg" id="bMsg" role="status"></span>
+        </div>
+      </div>
+      <div class="fila"><p class="fila-h" id="lConta"></p><ul id="lFila"></ul></div>`;
+
+    $('lFav').addEventListener('click', e => {
+      e.preventDefault();
+      batchMsg('Não clique aqui: arraste o botão para a barra de favoritos e use-o na página da cifra.');
+    });
+    $('lPasta').addEventListener('click', async () => {
+      if (!window.showDirectoryPicker) return batchMsg('Use o Chrome ou o Edge: a importação em lote grava direto na pasta.');
+      if (!crypto.subtle) return batchMsg('Abra o site por localhost.');
+      const senha = $('lSenha').value;
+      if (!privKey && !senha) return batchMsg('Digite a senha.');
+      try {
+        const dir = await pickDir();
+        if (!privKey) {
+          batchMsg('Conferindo a senha…');
+          // Com músicas já criptografadas, a senha precisa ser a mesma delas
+          if (CRIPTO) await unlockWith(await deriveKey(senha, CRIPTO.salt, CRIPTO.iter));
+          else batch.senha = senha;
+        }
+        batch.dir = dir;
+        $('lSenha').value = '';
+        batchMsg(nextPending() < 0 ? 'Todas as músicas da fila já estão salvas. Para refazer, marque a opção abaixo.' : 'Pronto. Clique em Abrir próxima.');
+      } catch (e) {
+        batchMsg(e.name === 'AbortError' ? 'Cancelado' : e.message === 'senha incorreta' ? 'Senha diferente da usada nas outras músicas' : e.message);
+      }
+      paintBatch();
+    });
+    $('lAbrir').addEventListener('click', () => openInTab(nextPending(batch.at)));
+    $('lRefazer').addEventListener('change', e => {
+      batch.redo = e.target.checked;
+      batch.redone = new Set();
+      batch.at = -1;
+      paintBatch();
+    });
+    $('lFila').addEventListener('click', e => {
+      const b = e.target.closest('button[data-i]');
+      if (b) openInTab(+b.dataset.i);
+    });
+
+    if (batch.loaded) return paintBatch();
+    paintBatch();
+    const s = document.createElement('script');
+    s.src = 'musicas/fila.js';
+    s.onload = s.onerror = () => { batch.loaded = true; paintBatch(); };
+    document.head.appendChild(s);
+  }
+
+  function batchMsg(t) {
+    batch.msg = t;
+    if ($('bMsg')) $('bMsg').textContent = t;
+  }
+
+  function paintBatch() {
+    if (!$('lFila')) return;
+    const q = queue(), ready = !!batch.dir;
+    $('lSenha').hidden = !!privKey;
+    $('lSenhaInfo').hidden = !privKey;
+    $('lPasta').textContent = ready ? 'Pasta escolhida ✓' : 'Escolher pasta';
+    $('lAbrir').disabled = !ready || nextPending(batch.at) < 0;
+    $('bMsg').textContent = batch.msg;
+    $('lRefazer').checked = batch.redo;
+    if (!q.length) {
+      $('lConta').innerHTML = !batch.loaded ? 'Carregando a fila…' : 'Não achei a fila. Crie <code>musicas/fila.js</code> com ' +
+        '<code>window.MUSICAS_FILA = [{ titulo, artista, fonte }, …]</code>.';
+      $('lFila').innerHTML = '';
+      return;
+    }
+    $('lConta').textContent = batch.redo ? `${batch.redone.size} de ${q.length} refeitas` : `${q.filter(savedEntry).length} de ${q.length} salvas`;
+    $('lFila').innerHTML = q.map((m, i) => {
+      const e = savedEntry(m);
+      return `<li${i === batch.at ? ' class="atual"' : ''}>
+        <button type="button" data-i="${i}"${ready ? '' : ' disabled'}>${esc(m.titulo)}<span>${esc(m.artista)}</span></button>
+        ${i === batch.at ? '<em>aberta na aba</em>' : e && isDone(i) ? `<a href="#${esc(e.id)}">✓ ${batch.redo ? 'refeita' : 'salva'}</a>` : e ? `<a href="#${esc(e.id)}">salva antes</a>` : ''}</li>`;
+    }).join('');
+  }
+
+  // Abre a música i na aba da fila (a mesma aba é reaproveitada enquanto estiver aberta)
+  function openInTab(i) {
+    if (i < 0 || !queue()[i]) return;
+    batch.at = i;
+    const url = queue()[i].fonte;
+    if (batch.tab && !batch.tab.closed) batch.tab.location.href = url;
+    else batch.tab = window.open(url, 'cifra-lote');
+    if (!batch.tab) batchMsg('O navegador bloqueou a aba. Clique em Abrir próxima.');
+    paintBatch();
+  }
+
+  // Recebe a cifra mandada pelo favorito; fromTab = veio da aba da fila (e não colada)
+  async function receiveCifra(d, fromTab) {
+    if (!batch.dir) return batchMsg('Escolha a pasta antes de pegar as cifras.');
+    const q = queue();
+    let i = q.findIndex(m => samePage(m.fonte, d.url));
+    if (i < 0 && fromTab) i = batch.at;
+    if (i < 0) return batchMsg(`Essa página não está na fila: ${d.url}`);
+    const m = q[i];
+    const built = buildSong({ titulo: m.titulo, artista: m.artista, tom: d.tom, fonte: m.fonte, texto: d.texto });
+    if (!built.song.cifra) return batchMsg(`Não achei a cifra de ${m.titulo} na página.`);
+    batchMsg(`Salvando ${m.titulo}…`);
+    try {
+      await encryptAndSave({ ...built, senha: batch.senha }, batch.dir);
+      if (batch.redo) batch.redone.add(i);
+    } catch (e) {
+      return batchMsg(`Erro ao salvar ${m.titulo}: ${e.message}`);
+    }
+    const next = nextPending(i);
+    if (next < 0) {
+      batch.at = -1;
+      batchMsg(`Salva: ${m.titulo}. Todas as músicas da fila foram salvas: faça commit de musicas/criptografadas/.`);
+      paintBatch();
+      return;
+    }
+    openInTab(next);
+    batchMsg(`Salva: ${m.titulo}. ` + (batch.tab ? `Abrindo ${q[next].titulo}…` : 'Clique em Abrir próxima.'));
+  }
+
+  window.addEventListener('message', e => {
+    const d = e.data;
+    if (!batch.tab || e.source !== batch.tab || d?.tipo !== 'cifra-lote' || typeof d.texto !== 'string') return;
+    // Uma de cada vez: o índice é regravado a cada música
+    batch.chain = batch.chain.then(() => receiveCifra(d, true));
+  });
+  // Plano B: quando a aba não consegue falar com esta página, o favorito copia a cifra para colar aqui
+  document.addEventListener('paste', e => {
+    if (!$('lFila')) return;
+    let d;
+    try { d = JSON.parse(e.clipboardData.getData('text')); } catch { return; }
+    if (d?.tipo !== 'cifra-lote' || typeof d.texto !== 'string') return;
+    e.preventDefault();
+    batch.chain = batch.chain.then(() => receiveCifra(d, false));
+  });
+
   // Chave lembrada: só vale enquanto o sal não mudar (o criptografar.js gera um sal novo)
   (async () => {
+    await refreshIndex();
     const saved = CRIPTO && crypto.subtle && store.get('chave', null);
     if (!saved || saved.salt !== CRIPTO.salt) return;
     try {
