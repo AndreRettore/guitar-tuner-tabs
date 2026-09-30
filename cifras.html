@@ -303,7 +303,7 @@
         <span class="links"><button id="lockBtn" type="button" hidden></button><a href="#importar">+ Importar</a></span></div>
       <form class="unlock" id="unlock" hidden>
         <input id="pw" type="password" placeholder="Senha das cifras privadas" autocomplete="current-password">
-        <label class="remember"><input type="checkbox" id="remember"> Lembrar neste aparelho</label>
+        <label class="remember"><input type="checkbox" id="remember" checked> Lembrar neste aparelho</label>
         <div class="unlock-row"><button type="submit" id="pwBtn">Abrir</button><span id="pwMsg" role="status"></span></div>
       </form>
       <p class="notice" id="idxNotice" hidden>Os nomes das músicas protegidas ainda não aparecem com a página bloqueada.
@@ -648,7 +648,7 @@
         <form class="locked" id="lockedForm">
           <p>Esta cifra é protegida por senha.</p>
           <input id="lpw" type="password" placeholder="Senha" autocomplete="current-password">
-          <label class="remember"><input type="checkbox" id="lremember"> Lembrar neste aparelho</label>
+          <label class="remember"><input type="checkbox" id="lremember" checked> Lembrar neste aparelho</label>
           <div class="unlock-row"><button type="submit" id="lBtn">Abrir</button><span id="lMsg" role="status"></span></div>
         </form>`;
       $('lpw').focus({ preventScroll: true });
