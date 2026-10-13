@@ -8,6 +8,7 @@
 <title>Cifras</title>
 <link rel="icon" type="image/svg+xml" href="img/favicon.svg">
 <link rel="apple-touch-icon" href="img/apple-touch-icon.png">
+<link rel="manifest" href="manifest.json">
 <meta property="og:type" content="website">
 <meta property="og:title" content="Cifras">
 <meta property="og:description" content="Cifras para violão com transposição de tom e diagramas de acordes.">
@@ -1229,6 +1230,10 @@
   window.addEventListener('hashchange', open);
   applyPrivate();
 })();
+</script>
+<script>
+  // Guarda o site no aparelho para funcionar offline (ver sw.js)
+  if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) navigator.serviceWorker.register('sw.js').catch(() => {});
 </script>
 </body>
 </html>

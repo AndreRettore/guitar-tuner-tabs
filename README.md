@@ -11,6 +11,8 @@ Site para violão em HTML, CSS e JavaScript puros — sem bibliotecas. Duas pág
 index.html                página do afinador
 cifras.html               página de cifras
 musicas.js                cifras públicas
+manifest.json             dados para instalar o site como app
+sw.js                     service worker: guarda o site para funcionar offline
 img/                      ícones do site e imagem de compartilhamento
 scripts/
   criptografar.js         recriptografa as cifras privadas (troca de senha)
@@ -19,6 +21,15 @@ musicas/
   originais/              cifras privadas com letra (ficam só no computador)
   fila.js                 fila da importação em lote (fica só no computador)
 ```
+
+## Offline no celular
+
+O site funciona sem internet. Na primeira visita, o `sw.js` guarda no aparelho as duas páginas, as imagens, as cifras públicas e todas as cifras criptografadas. Com internet, ele busca sempre a versão nova e atualiza a cópia guardada. Sem internet, ou com a rede demorando mais de 3 segundos, usa a cópia guardada. Cifras novas enviadas ao GitHub chegam ao celular na próxima vez que o site for aberto com internet.
+
+Para instalar como app:
+
+- **iPhone:** abra no Safari → **Compartilhar** → **Adicionar à Tela de Início**. O app instalado não compartilha dados com o Safari, então a senha das cifras precisa ser digitada uma vez dentro dele (com **Lembrar neste aparelho** marcado).
+- **Android:** abra no Chrome → menu ⋮ → **Instalar app** (ou **Adicionar à tela inicial**).
 
 ## Afinador
 
