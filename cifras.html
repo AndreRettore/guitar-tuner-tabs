@@ -622,6 +622,7 @@
   let speed = store.get('velocidade', 2);
   const SPEEDS = [8, 14, 22, 32, 45, 62, 85]; // px/s
   let scrolling = false, lastT = 0, acc = 0;
+  let ownTop = 0, touching = false, userAt = 0; // para não brigar com a rolagem feita pelo dedo
 
   function renderList() {
     const q = norm($('q').value.trim());
@@ -710,18 +711,21 @@
   }
 
   // ---------- Rolagem automática ----------
+  // Enquanto o dedo arrasta a cifra (ou a inércia do gesto continua), a rolagem automática
+  // espera, sem desligar, e retoma de onde o usuário parou
   function tick(t) {
     if (!scrolling) return;
     const el = $('song');
+    if (touching || t - userAt < 200) { lastT = t; acc = 0; return requestAnimationFrame(tick); }
     if (lastT) acc += SPEEDS[speed - 1] * (t - lastT) / 1000;
     lastT = t;
     const px = Math.floor(acc);
-    if (px) { el.scrollTop += px; acc -= px; }
+    if (px) { el.scrollTop += px; acc -= px; ownTop = el.scrollTop; }
     if (el.scrollTop + el.clientHeight >= el.scrollHeight - 1) return stopScroll();
     requestAnimationFrame(tick);
   }
   function startScroll() {
-    scrolling = true; lastT = 0; acc = 0;
+    scrolling = true; lastT = 0; acc = 0; ownTop = $('song').scrollTop;
     const b = $('scrollBtn'); if (b) { b.textContent = '❚❚'; b.setAttribute('aria-pressed', 'true'); }
     requestAnimationFrame(tick);
   }
@@ -762,8 +766,14 @@
       document.querySelector('.diagrams').hidden = !showChords;
     }
   });
-  // Tocar na cifra pausa a rolagem
-  $('song').addEventListener('pointerdown', e => { if (scrolling && !e.target.closest('.tools')) stopScroll(); });
+  // Tocar na cifra (sem arrastar) pausa a rolagem; arrastar ou usar a roda do mouse só a adia
+  $('song').addEventListener('click', e => { if (scrolling && !e.target.closest('.tools')) stopScroll(); });
+  $('song').addEventListener('touchstart', () => { touching = true; }, { passive: true });
+  addEventListener('touchend', () => { touching = false; userAt = performance.now(); });
+  addEventListener('touchcancel', () => { touching = false; userAt = performance.now(); });
+  $('song').addEventListener('scroll', e => {
+    if (Math.abs(e.target.scrollTop - ownTop) > 1) { userAt = performance.now(); ownTop = e.target.scrollTop; }
+  }, { passive: true });
 
   // ---------- Cifras privadas (criptografadas com senha) ----------
   // musicas/criptografadas/indice.js lista os arquivos .enc.js da mesma pasta, um por música, cifrados com
