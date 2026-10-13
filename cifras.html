@@ -208,7 +208,7 @@
   .tools {
     position: sticky;
     top: 0;
-    z-index: 1;
+    z-index: 2;
     display: flex;
     flex-wrap: wrap;
     gap: 8px 16px;
@@ -235,16 +235,33 @@
 
   .diagrams { display: flex; flex-wrap: wrap; gap: 8px 16px; padding: 16px 24px 0; }
   .diagrams[hidden] { display: none; }
-  .diagrams figure { text-align: center; }
-  .diagrams figcaption { color: var(--chord); font-weight: 600; font-size: .9rem; }
-  .diagrams svg { width: 64px; height: auto; display: block; }
-  .diagrams .ln { stroke: var(--dim); }
-  .diagrams .nut { stroke: var(--fg); }
-  .diagrams .dot { fill: var(--fg); }
-  .diagrams .mk { fill: none; stroke: var(--dim); }
-  .diagrams .fr { fill: var(--dim); font-size: 8px; }
+  :is(.diagrams, .pop) figure { text-align: center; }
+  :is(.diagrams, .pop) figcaption { color: var(--chord); font-weight: 600; font-size: .9rem; }
+  :is(.diagrams, .pop) svg { width: 64px; height: auto; display: block; }
+  :is(.diagrams, .pop) .ln { stroke: var(--dim); }
+  :is(.diagrams, .pop) .nut { stroke: var(--fg); }
+  :is(.diagrams, .pop) .dot { fill: var(--fg); }
+  :is(.diagrams, .pop) .mk { fill: none; stroke: var(--dim); }
+  :is(.diagrams, .pop) .fr { fill: var(--dim); font-size: 8px; }
 
-  .sheet { padding: 16px 24px 40vh; font-size: var(--fs); line-height: 1.35; }
+  /* Diagrama que abre ao tocar num acorde da cifra */
+  .pop {
+    position: absolute;
+    z-index: 1;
+    padding: 8px 12px 6px;
+    background: var(--panel);
+    border: 1px solid var(--faint);
+    border-radius: 10px;
+    box-shadow: 0 6px 24px rgba(0, 0, 0, .5);
+    font-size: 1rem;
+    line-height: normal;
+  }
+  .pop svg { width: 96px; }
+  .pop p { color: var(--dim); font-size: .8rem; padding: 4px 0 2px; }
+
+  .sheet { position: relative; padding: 16px 24px 40vh; font-size: var(--fs); line-height: 1.35; }
+  .sheet .c { position: relative; cursor: pointer; }
+  .sheet .c::after { content: ''; position: absolute; inset: -6px -5px; } /* área de toque maior, sem mexer no layout */
   .sheet h3 {
     font-size: .8em;
     font-weight: 600;
@@ -623,6 +640,7 @@
   const SPEEDS = [8, 14, 22, 32, 45, 62, 85]; // px/s
   let scrolling = false, lastT = 0, acc = 0;
   let ownTop = 0, touching = false, userAt = 0; // para não brigar com a rolagem feita pelo dedo
+  let popFor = null, fixo = null; // acorde com o diagrama aberto; acorde fixado com clique
 
   function renderList() {
     const q = norm($('q').value.trim());
@@ -636,6 +654,7 @@
   function renderSong() {
     const song = $('song');
     stopScroll();
+    popFor = fixo = null;
     if (!current) {
       song.innerHTML = '<div class="empty">Escolha uma música</div>';
       return;
@@ -734,8 +753,30 @@
     const b = $('scrollBtn'); if (b) { b.textContent = '▶'; b.setAttribute('aria-pressed', 'false'); }
   }
 
+  // ---------- Diagrama ao tocar no acorde ----------
+  function closePop() { $('pop')?.remove(); popFor = fixo = null; }
+  function openPop(c) {
+    $('pop')?.remove();
+    const sheet = c.closest('.sheet'), name = c.textContent;
+    const pop = Object.assign(document.createElement('div'), { id: 'pop', className: 'pop' });
+    pop.innerHTML = diagram(name) || `<figure><figcaption>${esc(name)}</figcaption><p>Sem diagrama</p></figure>`;
+    sheet.append(pop);
+    // Abre acima do acorde (a parte já tocada) se couber abaixo da barra de ferramentas; senão, abaixo
+    const s = sheet.getBoundingClientRect(), r = c.getBoundingClientRect();
+    const topo = (document.querySelector('.tools') || $('song')).getBoundingClientRect().bottom;
+    const h = pop.offsetHeight, w = pop.offsetWidth;
+    const above = r.top - h - 6 > topo;
+    pop.style.top = (above ? r.top - s.top - h - 6 : r.bottom - s.top + 6) + 'px';
+    pop.style.left = Math.max(8, Math.min(sheet.clientWidth - w - 8, r.left - s.left + (r.width - w) / 2)) + 'px';
+    popFor = c;
+  }
+  addEventListener('keydown', e => { if (e.key === 'Escape') closePop(); });
+  // Só a largura muda o lugar dos acordes (no iPhone a altura muda quando a barra do Safari aparece ou some)
+  let largura = innerWidth;
+  addEventListener('resize', () => { if (innerWidth !== largura) { largura = innerWidth; closePop(); } });
+
   // ---------- Ações ----------
-  const setFs = v => { fs = Math.max(13, Math.min(28, v)); store.set('fs', fs); document.documentElement.style.setProperty('--fs', fs + 'px'); };
+  const setFs = v => { closePop(); fs = Math.max(13, Math.min(28, v)); store.set('fs', fs); document.documentElement.style.setProperty('--fs', fs + 'px'); };
   setFs(fs);
 
   $('song').addEventListener('click', e => {
@@ -766,8 +807,32 @@
       document.querySelector('.diagrams').hidden = !showChords;
     }
   });
-  // Tocar na cifra (sem arrastar) pausa a rolagem; arrastar ou usar a roda do mouse só a adia
-  $('song').addEventListener('click', e => { if (scrolling && !e.target.closest('.tools')) stopScroll(); });
+  // Tocar num acorde fixa (ou fecha) o diagrama, sem pausar a rolagem; com o diagrama fixo, tocar em
+  // qualquer outro lugar só o fecha. Tocar na cifra (sem arrastar) pausa a rolagem; arrastar ou usar a
+  // roda do mouse só a adia
+  $('song').addEventListener('click', e => {
+    const c = e.target.closest('.sheet .c');
+    if (c) {
+      if (c === fixo) return closePop();
+      if (c !== popFor) openPop(c);
+      fixo = c;
+      return;
+    }
+    if (popFor) return closePop();
+    if (scrolling && !e.target.closest('.tools')) stopScroll();
+  });
+  // Com o mouse, passar por cima de um acorde já mostra o diagrama; ao sair, ele fecha (ou volta ao fixado)
+  const acordeDoMouse = e => e.pointerType === 'mouse' && e.target.closest('.sheet .c');
+  $('song').addEventListener('pointerover', e => {
+    const c = acordeDoMouse(e);
+    if (c && c !== popFor) openPop(c);
+  });
+  $('song').addEventListener('pointerout', e => {
+    const c = acordeDoMouse(e);
+    if (!c || c.contains(e.relatedTarget)) return;
+    if (!fixo) closePop();
+    else if (popFor !== fixo) openPop(fixo);
+  });
   $('song').addEventListener('touchstart', () => { touching = true; }, { passive: true });
   addEventListener('touchend', () => { touching = false; userAt = performance.now(); });
   addEventListener('touchcancel', () => { touching = false; userAt = performance.now(); });
