@@ -77,6 +77,12 @@ window.MUSICAS_CRIPTO = {
       "artista": "Cássia Eller"
     },
     {
+      "arquivo": "chris-isaak-wicked-game.enc.js",
+      "id": "wicked-game",
+      "titulo": "Wicked Game",
+      "artista": "Chris Isaak"
+    },
+    {
       "arquivo": "dire-straits-sultans-of-swing.enc.js",
       "id": "sultans-of-swing",
       "titulo": "Sultans of Swing",
@@ -167,6 +173,12 @@ window.MUSICAS_CRIPTO = {
       "artista": "Leela"
     },
     {
+      "arquivo": "legiao-urbana-indios.enc.js",
+      "id": "indios",
+      "titulo": "Índios",
+      "artista": "Legião Urbana"
+    },
+    {
       "arquivo": "legiao-urbana-que-pais-e-este.enc.js",
       "id": "que-pais-e-este",
       "titulo": "Que País É Este",
@@ -189,6 +201,18 @@ window.MUSICAS_CRIPTO = {
       "id": "nothing-else-matters",
       "titulo": "Nothing Else Matters",
       "artista": "Metallica"
+    },
+    {
+      "arquivo": "neil-young-harvest-moon.enc.js",
+      "id": "harvest-moon",
+      "titulo": "Harvest Moon",
+      "artista": "Neil Young"
+    },
+    {
+      "arquivo": "novos-baianos-misterio-do-planeta.enc.js",
+      "id": "misterio-do-planeta",
+      "titulo": "Mistério do Planeta",
+      "artista": "Novos Baianos"
     },
     {
       "arquivo": "oasis-wonderwall.enc.js",
@@ -245,6 +269,12 @@ window.MUSICAS_CRIPTO = {
       "artista": "Skank"
     },
     {
+      "arquivo": "skank-vou-deixar.enc.js",
+      "id": "vou-deixar",
+      "titulo": "Vou Deixar",
+      "artista": "Skank"
+    },
+    {
       "arquivo": "the-animals-the-house-of-the-rising-sun.enc.js",
       "id": "the-house-of-the-rising-sun",
       "titulo": "The House of the Rising Sun",
@@ -297,6 +327,18 @@ window.MUSICAS_CRIPTO = {
       "id": "seven-nation-army",
       "titulo": "Seven Nation Army",
       "artista": "The White Stripes"
+    },
+    {
+      "arquivo": "victor-leo-borboletas.enc.js",
+      "id": "borboletas",
+      "titulo": "Borboletas",
+      "artista": "Victor & Leo"
+    },
+    {
+      "arquivo": "victor-leo-deus-e-eu-no-sertao.enc.js",
+      "id": "deus-e-eu-no-sertao",
+      "titulo": "Deus e Eu no Sertão",
+      "artista": "Victor & Leo"
     }
   ]
 };
