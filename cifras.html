@@ -73,6 +73,11 @@
   }
   .search input:focus { border-color: var(--dim); }
   .search input::placeholder { color: var(--dim); }
+  .sort { display: flex; align-items: center; gap: 6px; padding: 0 16px 12px; font-size: .75rem; color: var(--dim); letter-spacing: .05em; }
+  .sort > span { margin-right: 2px; }
+  .sort button { padding: 3px 10px; border: 1px solid var(--faint); border-radius: 6px; }
+  .sort button:hover { border-color: var(--dim); }
+  .sort button[aria-pressed="true"] { border-color: var(--chord); color: var(--chord); }
   .count { display: flex; justify-content: space-between; padding: 0 16px 8px; font-size: .75rem; color: var(--dim); letter-spacing: .05em; }
   .count a { color: var(--chord); text-decoration: none; }
   .count a:hover { text-decoration: underline; }
@@ -193,6 +198,21 @@
   #songs a[aria-current] { border-left-color: var(--chord); background: var(--panel); }
   #songs b { display: block; font-weight: 500; }
   #songs span { font-size: .85rem; color: var(--dim); }
+  /* Cabeçalho de artista (lista ordenada por artista): tocar filtra a lista por ele */
+  #songs .grp { position: sticky; top: 0; z-index: 1; background: var(--bg); }
+  #songs .grp button {
+    display: block;
+    width: 100%;
+    padding: 14px 16px 6px;
+    text-align: left;
+    font-size: .75rem;
+    font-weight: 600;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: var(--dim);
+  }
+  #songs .grp button:hover { color: var(--fg); }
+  #songs .grp span { font-size: inherit; font-weight: 400; }
   .none { padding: 12px 16px; color: var(--dim); font-size: .9rem; }
 
   /* ---------- Música ---------- */
@@ -201,6 +221,7 @@
   .back { display: none; color: var(--dim); font-size: .9rem; margin-bottom: 12px; }
   h1 { font-size: 1.6rem; font-weight: 600; line-height: 1.2; }
   .artist { color: var(--dim); margin-top: 2px; }
+  .artist button:hover { color: var(--fg); text-decoration: underline; text-underline-offset: 2px; }
   .source { color: var(--dim); font-size: .8rem; margin-top: 6px; }
   .source a { color: var(--dim); text-decoration: underline; text-underline-offset: 2px; }
   .source a:hover { color: var(--fg); }
@@ -317,6 +338,8 @@
   <div class="app" id="app">
     <aside class="list">
       <div class="search"><input id="q" type="search" placeholder="Buscar música ou artista" autocomplete="off"></div>
+      <div class="sort" id="ordem"><span>Ordenar:</span>
+        <button type="button" data-ordem="titulo">Título</button><button type="button" data-ordem="artista">Artista</button></div>
       <div class="count"><span id="count"></span>
         <span class="links"><button id="lockBtn" type="button" hidden></button><a href="#importar">+ Importar</a></span></div>
       <form class="unlock" id="unlock" hidden>
@@ -641,14 +664,42 @@
   let scrolling = false, lastT = 0, acc = 0;
   let ownTop = 0, touching = false, userAt = 0; // para não brigar com a rolagem feita pelo dedo
   let popFor = null, fixo = null; // acorde com o diagrama aberto; acorde fixado com clique
+  let ordem = store.get('ordem', 'titulo'); // ordem da lista: 'titulo' ou 'artista'
+
+  // "The Beatles" fica no B, como nas bibliotecas de música
+  const chaveArtista = a => a.replace(/^the\s+/i, '');
+  const porArtista = (a, b) => chaveArtista(a.artista).localeCompare(chaveArtista(b.artista), 'pt-BR') || byTitle(a, b);
 
   function renderList() {
     const q = norm($('q').value.trim());
     const items = MUSICAS.filter(m => !q || norm(m.titulo + ' ' + m.artista).includes(q));
     $('count').textContent = `${items.length} ${items.length === 1 ? 'música' : 'músicas'}`;
-    $('songs').innerHTML = items.length
-      ? items.map(m => `<li><a href="#${esc(m.id)}"${current === m ? ' aria-current="true"' : ''}><b>${esc(m.titulo)}</b><span>${esc(m.artista)}${m.bloqueada ? ' · com senha' : m.privada ? ' · privada' : ''}</span></a></li>`).join('')
-      : '<li class="none">Nenhuma música encontrada</li>';
+    document.querySelectorAll('[data-ordem]').forEach(b => b.setAttribute('aria-pressed', b.dataset.ordem === ordem));
+    if (!items.length) { $('songs').innerHTML = '<li class="none">Nenhuma música encontrada</li>'; return; }
+    // Agrupada por artista, cada música mostra só se é privada; o artista já está no cabeçalho
+    const item = (m, artista) => {
+      const info = [artista && m.artista, m.bloqueada ? 'com senha' : m.privada ? 'privada' : ''].filter(Boolean).join(' · ');
+      return `<li><a href="#${esc(m.id)}"${current === m ? ' aria-current="true"' : ''}><b>${esc(m.titulo)}</b>${info ? `<span>${esc(info)}</span>` : ''}</a></li>`;
+    };
+    if (ordem === 'titulo') { $('songs').innerHTML = items.map(m => item(m, true)).join(''); return; }
+    const total = new Map();
+    for (const m of items) total.set(m.artista, (total.get(m.artista) || 0) + 1);
+    let html = '', prev = null;
+    for (const m of items.slice().sort(porArtista)) {
+      if (m.artista !== prev) {
+        prev = m.artista;
+        html += `<li class="grp"><button type="button" data-artista="${esc(prev)}" title="Mostrar só ${esc(prev)}">${esc(prev)} <span>· ${total.get(prev)}</span></button></li>`;
+      }
+      html += item(m, false);
+    }
+    $('songs').innerHTML = html;
+  }
+
+  // Tocar num artista (cabeçalho da lista ou nome na cifra) filtra a lista por ele; de novo, mostra todas
+  function filtrarArtista(artista) {
+    $('q').value = norm($('q').value.trim()) === norm(artista) ? '' : artista;
+    renderList();
+    $('songs').scrollTop = 0;
   }
 
   function renderSong() {
@@ -664,7 +715,7 @@
         <div class="song-head">
           <button class="back" data-act="back">← Músicas</button>
           <h1>${esc(current.titulo)}</h1>
-          <p class="artist">${esc(current.artista)}</p>
+          <p class="artist"><button type="button" data-act="artista" title="Ver músicas de ${esc(current.artista)}">${esc(current.artista)}</button></p>
         </div>
         <form class="locked" id="lockedForm">
           <p>Esta cifra é protegida por senha.</p>
@@ -687,7 +738,7 @@
       <div class="song-head">
         <button class="back" data-act="back">← Músicas</button>
         <h1>${esc(current.titulo)}</h1>
-        <p class="artist">${esc(current.artista)}</p>
+        <p class="artist"><button type="button" data-act="artista" title="Ver músicas de ${esc(current.artista)}">${esc(current.artista)}</button></p>
         ${sourceHTML(current.fonte)}
       </div>
       <div class="tools">
@@ -782,6 +833,12 @@
   $('song').addEventListener('click', e => {
     const btn = e.target.closest('[data-act], .key');
     if (btn?.dataset.act === 'back') { location.hash = ''; return; }
+    if (btn?.dataset.act === 'artista') {
+      $('q').value = '';
+      filtrarArtista(current.artista);
+      if (matchMedia('(max-width: 760px)').matches) location.hash = ''; // no celular, volta para a lista
+      return;
+    }
     if (!btn || !current) return;
     const act = btn.dataset.act || 'reset';
     const k = 'tom.' + current.id, shift = store.get(k, 0);
@@ -819,7 +876,7 @@
       return;
     }
     if (popFor) return closePop();
-    if (scrolling && !e.target.closest('.tools')) stopScroll();
+    if (scrolling && !e.target.closest('.tools, button')) stopScroll();
   });
   // Com o mouse, passar por cima de um acorde já mostra o diagrama; ao sair, ele fecha (ou volta ao fixado)
   const acordeDoMouse = e => e.pointerType === 'mouse' && e.target.closest('.sheet .c');
@@ -1322,6 +1379,17 @@
   })();
 
   $('q').addEventListener('input', renderList);
+  $('ordem').addEventListener('click', e => {
+    const b = e.target.closest('[data-ordem]');
+    if (!b) return;
+    ordem = b.dataset.ordem;
+    store.set('ordem', ordem);
+    renderList();
+  });
+  $('songs').addEventListener('click', e => {
+    const b = e.target.closest('[data-artista]');
+    if (b) filtrarArtista(b.dataset.artista);
+  });
   window.addEventListener('hashchange', open);
   applyPrivate();
 })();

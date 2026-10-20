@@ -3,7 +3,7 @@
 Site para violão em HTML, CSS e JavaScript puros — sem bibliotecas. Duas páginas, com um botão no topo para alternar entre elas:
 
 - `index.html` — afinador em afinação padrão (E A D G B E)
-- `cifras.html` — cifras com transposição de tom, diagramas de acordes, tamanho de texto e rolagem automática
+- `cifras.html` — cifras com transposição de tom, diagramas de acordes, tamanho de texto, rolagem automática e lista ordenada por título ou por artista
 
 ## Estrutura
 
