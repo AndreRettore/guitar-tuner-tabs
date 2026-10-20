@@ -116,9 +116,9 @@ O `.gitignore` deixa passar apenas `musicas/criptografadas/`: a pasta `originais
      { titulo: 'Wonderwall', artista: 'Oasis', fonte: 'https://www.cifraclub.com.br/oasis/wonderwall/' },
    ];
    ```
-2. Rode o site em `localhost`, no Chrome ou no Edge, e abra **+ Importar** → **importação em lote** (`cifras.html#lote`).
+2. No Chrome ou no Edge, abra **+ Importar** → **importação em lote** (`cifras.html#lote`), no site publicado ou em `localhost`.
 3. Arraste o botão **Pegar cifra** para a barra de favoritos (só na primeira vez).
-4. Digite a senha, clique em **Escolher pasta** e escolha a pasta `musicas/`. Depois clique em **Abrir próxima**.
+4. Digite a senha, clique em **Escolher pasta** e escolha a pasta `musicas/`. A fila é lida do `fila.js` dessa pasta. Depois clique em **Abrir próxima**.
 5. Em cada página de cifra que abrir, clique no favorito **Pegar cifra**. A música é convertida, criptografada e salva, e a aba passa sozinha para a próxima. A lista mostra quais já foram salvas.
 6. No fim, faça commit e push de `musicas/criptografadas/`.
 

@@ -1076,7 +1076,8 @@
   });
 
   // ---------- Importar em lote ----------
-  // A fila vem de musicas/fila.js (título, artista e link; fica só no computador). A página da cifra
+  // A fila vem de musicas/fila.js (título, artista e link; fica só no computador). Ela é lida da pasta
+  // escolhida, e assim o lote funciona também no site publicado, onde o fila.js não existe. A página da cifra
   // abre numa aba nossa; lá, o favorito "Pegar cifra" manda o texto de volta para cá, onde a música é
   // convertida, criptografada e gravada, e a aba segue para a próxima da fila.
 
@@ -1115,10 +1116,11 @@
   }
   const BOOKMARKLET = 'javascript:' + encodeURIComponent(`(${grabCifra})()`);
 
-  const batch = { loaded: false, dir: null, senha: '', tab: null, at: -1, msg: '', chain: Promise.resolve(), redo: false, redone: new Set() };
+  const batch = { loaded: false, dir: null, disco: [], senha: '', tab: null, at: -1, msg: '', chain: Promise.resolve(), redo: false, redone: new Set() };
   const queue = () => window.MUSICAS_FILA || [];
   const encFile = m => slug(`${m.artista} ${m.titulo}`) + '.enc.js';
-  const savedEntry = m => entradas().find(e => e.arquivo === encFile(m));
+  // Conta também o índice da pasta: no site publicado, as salvas ainda sem push só estão lá
+  const savedEntry = m => [...entradas(), ...batch.disco].find(e => e.arquivo === encFile(m));
   // Refazendo, contam como feitas só as salvas desde que a opção foi marcada
   const isDone = i => batch.redo ? batch.redone.has(i) : !!savedEntry(queue()[i]);
   // Próxima música ainda não feita depois da posição i (dando a volta na fila)
@@ -1128,6 +1130,23 @@
     return -1;
   };
   // Compara links sem www, barra final, parâmetros e âncora
+  // Lê da pasta escolhida o fila.js e o índice (o do site publicado pode estar atrás do da pasta)
+  async function readFromDir(dir) {
+    const text = async (sub, name) => {
+      try {
+        const pasta = sub ? await dir.getDirectoryHandle(sub) : dir;
+        return await (await (await pasta.getFileHandle(name)).getFile()).text();
+      } catch { return null; } // ainda não existe
+    };
+    const fila = await text('', 'fila.js');
+    if (fila) {
+      const w = {};
+      try { new Function('window', fila)(w); } catch (e) { throw new Error(`Erro no fila.js: ${e.message}`); }
+      if (Array.isArray(w.MUSICAS_FILA)) window.MUSICAS_FILA = w.MUSICAS_FILA;
+    }
+    const ind = await text('criptografadas', 'indice.js');
+    batch.disco = entradas(ind && parseIndex(ind));
+  }
   const samePage = (a, b) => {
     const key = u => { try { const x = new URL(u); return x.hostname.replace(/^www\./, '') + x.pathname.replace(/\/+$/, ''); } catch { return u; } };
     return key(a) === key(b);
@@ -1139,7 +1158,7 @@
         <button class="back" data-act="back">← Músicas</button>
         <h1>Importar em lote</h1>
         <p class="artist">Salva as músicas de <code>musicas/fila.js</code> uma por vez, criptografadas, sem copiar e colar.
-          Funciona no Chrome ou no Edge, com o site aberto em <code>localhost</code>.</p>
+          Funciona no Chrome ou no Edge, no site ou em <code>localhost</code>.</p>
       </div>
       <div class="imp">
         <ol class="passos">
@@ -1167,11 +1186,12 @@
     });
     $('lPasta').addEventListener('click', async () => {
       if (!window.showDirectoryPicker) return batchMsg('Use o Chrome ou o Edge: a importação em lote grava direto na pasta.');
-      if (!crypto.subtle) return batchMsg('Abra o site por localhost.');
+      if (!crypto.subtle) return batchMsg('Abra o site por https ou localhost.');
       const senha = $('lSenha').value;
       if (!privKey && !senha) return batchMsg('Digite a senha.');
       try {
         const dir = await pickDir();
+        await readFromDir(dir);
         if (!privKey) {
           batchMsg('Conferindo a senha…');
           // Com músicas já criptografadas, a senha precisa ser a mesma delas
@@ -1180,7 +1200,7 @@
         }
         batch.dir = dir;
         $('lSenha').value = '';
-        batchMsg(nextPending() < 0 ? 'Todas as músicas da fila já estão salvas. Para refazer, marque a opção abaixo.' : 'Pronto. Clique em Abrir próxima.');
+        batchMsg(!queue().length ? 'Não achei o fila.js na pasta musicas/.' : nextPending() < 0 ? 'Todas as músicas da fila já estão salvas. Para refazer, marque a opção abaixo.' : 'Pronto. Clique em Abrir próxima.');
       } catch (e) {
         batchMsg(e.name === 'AbortError' ? 'Cancelado' : e.message === 'senha incorreta' ? 'Senha diferente da usada nas outras músicas' : e.message);
       }
@@ -1221,7 +1241,7 @@
     $('bMsg').textContent = batch.msg;
     $('lRefazer').checked = batch.redo;
     if (!q.length) {
-      $('lConta').innerHTML = !batch.loaded ? 'Carregando a fila…' : 'Não achei a fila. Crie <code>musicas/fila.js</code> com ' +
+      $('lConta').innerHTML = !batch.loaded ? 'Carregando a fila…' : !ready ? 'A fila aparece aqui depois de escolher a pasta.' : 'Não achei a fila. Crie <code>musicas/fila.js</code> com ' +
         '<code>window.MUSICAS_FILA = [{ titulo, artista, fonte }, …]</code>.';
       $('lFila').innerHTML = '';
       return;
