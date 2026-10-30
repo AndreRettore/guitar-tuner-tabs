@@ -117,8 +117,14 @@
     font-size: clamp(.8rem, 2.2dvh, 1rem);
     color: var(--dim);
     transition: all .2s;
+    cursor: pointer;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
   }
   .strings span sub { font-size: .6em; }
+  @media (hover: hover) { .strings span:hover { border-color: var(--dim); } }
+  .strings span:focus-visible { outline: 2px solid var(--ok); outline-offset: 3px; }
+  .strings span.playing { border-color: var(--fg); color: var(--fg); }
   .strings span.on { border-color: var(--state); color: var(--state); }
 
   button {
@@ -193,6 +199,8 @@
   const MEDIAN_N = 5;               // janela do filtro de mediana
   const EMA_READING = 0.2;          // suavização dos valores
   const EMA_NEEDLE = 0.3;           // suavização do ponteiro
+  const PLUCK_DECAY = 4;            // segundos até o som da corda tocada cair 60 dB
+  const PLUCK_VOLUME = 0.6;         // volume do som da corda tocada
 
   // ---------- Mostrador ----------
   const CX = 100, CY = 105, R = 85, SPAN = 60; // ±50 cents = ±60°
@@ -228,12 +236,79 @@
     t.textContent = s;
     $('ticks').appendChild(t);
   });
-  STRINGS.forEach(s => {
+  STRINGS.forEach((s, i) => {
     const el = document.createElement('span');
     el.innerHTML = `${s.n}<sub>${s.o}</sub>`;
+    el.setAttribute('role', 'button');
+    el.setAttribute('aria-label', `Tocar ${s.n}${s.o}`);
+    el.tabIndex = 0;
+    el.addEventListener('click', () => pluck(i));
+    el.addEventListener('keydown', e => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pluck(i); }
+    });
     $('strings').appendChild(el);
   });
   const chips = [...$('strings').children];
+
+  // ---------- Som das cordas (Karplus-Strong) ----------
+  // Um ruído curto circula num atraso do tamanho de um período; a cada volta é
+  // tirada a média de duas amostras vizinhas, então os agudos morrem rápido e
+  // sobra a nota, como numa corda dedilhada.
+  let out;
+  const pluckCache = [], playing = [];
+
+  function pluckBuffer(i) {
+    if (pluckCache[i]) return pluckCache[i];
+    const sr = out.sampleRate, f = STRINGS[i].f;
+    const n = Math.round(sr / f - 0.5);                  // a média soma meia amostra ao atraso
+    const loss = Math.pow(0.001, 1 / (f * PLUCK_DECAY)); // -60 dB em PLUCK_DECAY s
+    const buffer = out.createBuffer(1, Math.floor(sr * PLUCK_DECAY), sr);
+    const y = buffer.getChannelData(0);
+
+    // Ruído suavizado (dedo, não palheta) e sem componente contínua
+    let lp = 0, mean = 0;
+    for (let t = 0; t < n; t++) mean += y[t] = lp += (Math.random() * 2 - 1 - lp) * 0.5;
+    mean /= n;
+    for (let t = 0; t < n; t++) y[t] -= mean;
+    for (let t = n; t < y.length; t++) y[t] = loss * 0.5 * (y[t - n] + (y[t - n - 1] || 0));
+
+    let peak = 0;
+    for (let t = 0; t < y.length; t++) peak = Math.max(peak, Math.abs(y[t]));
+    for (let t = 0; t < y.length; t++) y[t] /= peak;
+
+    // O atraso é inteiro, então o tom sai um pouco fora; a velocidade de
+    // reprodução corrige para a frequência exata da corda
+    return pluckCache[i] = { buffer, rate: f * (n + 0.5) / sr };
+  }
+
+  function pluck(i) {
+    out ??= new (window.AudioContext || window.webkitAudioContext)();
+    out.resume().catch(() => {});
+    const now = out.currentTime;
+
+    // Tocar de novo a mesma corda abafa a anterior (com rampa, para não estalar)
+    if (playing[i]) {
+      playing[i].gain.gain.setTargetAtTime(0, now, 0.01);
+      playing[i].src.stop(now + 0.05);
+    }
+
+    const { buffer, rate } = pluckBuffer(i);
+    const src = out.createBufferSource();
+    src.buffer = buffer;
+    src.playbackRate.value = rate;
+    const gain = out.createGain();
+    gain.gain.value = PLUCK_VOLUME;
+    src.connect(gain).connect(out.destination);
+    src.start(now);
+
+    const p = playing[i] = { src, gain };
+    chips[i].classList.add('playing');
+    src.onended = () => {
+      if (playing[i] !== p) return;
+      playing[i] = null;
+      chips[i].classList.remove('playing');
+    };
+  }
 
   // ---------- Detecção de pitch (YIN) ----------
   function nearestString(f) {
@@ -311,7 +386,7 @@
 
   // ---------- Estado ----------
   let ctx, stream, analyser, buf, diff, rafId, wakeLock;
-  let running = false, active = false;
+  let running = false, starting = false, active = false;
   let lastValid = 0, curString = -1, onsetAt = 0, wasLoud = false;
   let cents = 0, hz = 0, needle = 0, noise = 0, lastFrame = 0;
   const hist = [];
@@ -384,7 +459,8 @@
       $('note').classList.add('idle');
       $('cents').textContent = '';
       $('hz').textContent = '';
-      $('hint').textContent = running ? 'Toque uma corda' : 'Toque em Iniciar';
+      $('hint').textContent = !running ? 'Toque em Iniciar'
+        : ctx.state === 'suspended' ? 'Toque na tela para ativar' : 'Toque uma corda';
     }
   }
 
@@ -393,6 +469,9 @@
       $('hint').textContent = 'Microfone indisponível (use HTTPS)';
       return;
     }
+    if (starting) return;
+    starting = true;
+    $('hint').textContent = 'Ativando microfone…';
     ctx = new (window.AudioContext || window.webkitAudioContext)();
     try {
       stream = await navigator.mediaDevices.getUserMedia({
@@ -400,10 +479,13 @@
       });
     } catch {
       ctx.close();
+      starting = false;
       $('hint').textContent = 'Permissão do microfone negada';
       return;
     }
-    await ctx.resume();
+    // Ao abrir a página sem um toque, o navegador pode deixar o áudio suspenso;
+    // nesse caso ele é retomado no primeiro toque (ver listener abaixo)
+    ctx.resume().catch(() => {});
 
     const src = ctx.createMediaStreamSource(stream);
     const hp = ctx.createBiquadFilter();
@@ -420,6 +502,7 @@
     try { wakeLock = await navigator.wakeLock?.request('screen'); } catch {}
 
     running = true;
+    starting = false;
     noise = lastFrame = 0;
     $('toggle').textContent = 'Parar';
     $('toggle').classList.add('stop');
@@ -440,7 +523,11 @@
   }
 
   $('toggle').addEventListener('click', () => (running ? stop() : start()));
+  for (const ev of ['pointerdown', 'keydown']) {
+    document.addEventListener(ev, () => { if (running && ctx.state === 'suspended') ctx.resume().catch(() => {}); });
+  }
   render();
+  start(); // Já abre afinando; o botão continua para parar e reiniciar
 })();
 </script>
 <script>
