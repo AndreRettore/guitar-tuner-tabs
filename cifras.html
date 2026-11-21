@@ -667,6 +667,75 @@
   let ownTop = 0, touching = false, userAt = 0; // para não brigar com a rolagem feita pelo dedo
   let popFor = null, fixo = null; // acorde com o diagrama aberto; acorde fixado com clique
   let ordem = store.get('ordem', 'titulo'); // ordem da lista: 'titulo' ou 'artista'
+  const traducoes = new Map();
+  let traduzindo = false, erroTraducao = '';
+
+  // Traduz só a letra. Os acordes são recolocados na posição proporcional da
+  // frase traduzida para preservar o acompanhamento musical.
+  async function traduzirLinha(line) {
+    const acordes = [], partes = line.split(/\[([^\]]+)\]/);
+    let letra = '';
+    for (let i = 0; i < partes.length; i++) {
+      if (i % 2) acordes.push({ nome: partes[i], posicao: letra.length });
+      else letra += partes[i];
+    }
+    if (!letra.trim()) return line;
+    const url = new URL('https://translate.googleapis.com/translate_a/single');
+    url.search = new URLSearchParams({ client: 'gtx', sl: 'auto', tl: 'en', dt: 't', q: letra });
+    const res = await fetch(url);
+    if (!res.ok) throw new Error('Não foi possível traduzir agora.');
+    const data = await res.json();
+    let traduzida = data?.[0]?.map(trecho => trecho[0]).join('');
+    if (!traduzida) throw new Error('Não foi possível traduzir agora.');
+    for (let i = acordes.length - 1; i >= 0; i--) {
+      const { nome, posicao } = acordes[i];
+      const destino = Math.round(posicao * traduzida.length / letra.length);
+      traduzida = traduzida.slice(0, destino) + `[${nome}]` + traduzida.slice(destino);
+    }
+    return traduzida;
+  }
+
+  async function traduzirCifra(cifra) {
+    const linhas = cifra.split('\n'), resultado = Array(linhas.length);
+    const elegiveis = linhas.map((linha, i) => ({ linha, i })).filter(({ linha }) => {
+      const t = linha.trim();
+      return t && !t.startsWith('#') && !TAB_RE.test(t) && !isChordLine(linha);
+    });
+    let proxima = 0;
+    await Promise.all(Array.from({ length: Math.min(4, elegiveis.length) }, async () => {
+      while (proxima < elegiveis.length) {
+        const { linha, i } = elegiveis[proxima++];
+        resultado[i] = await traduzirLinha(linha);
+      }
+    }));
+    linhas.forEach((linha, i) => { resultado[i] ??= linha; });
+    return resultado.join('\n');
+  }
+
+  async function alternarTraducao() {
+    if (!current || traduzindo) return;
+    if (traducoes.has(current.id)) {
+      traducoes.delete(current.id);
+      erroTraducao = '';
+      renderSong();
+      return;
+    }
+    const musica = current, top = $('song').scrollTop;
+    traduzindo = true;
+    erroTraducao = '';
+    renderSong();
+    try {
+      traducoes.set(musica.id, await traduzirCifra(musica.cifra));
+    } catch (e) {
+      erroTraducao = e.message || 'Não foi possível traduzir agora.';
+    } finally {
+      traduzindo = false;
+      if (current === musica) {
+        renderSong();
+        $('song').scrollTop = top;
+      }
+    }
+  }
 
   // "The Beatles" fica no B, como nas bibliotecas de música
   const chaveArtista = a => a.replace(/^the\s+/i, '');
@@ -732,8 +801,9 @@
     const key = transpose(current.tom, shift, false);
     const flats = useFlats(key);
     const shownKey = transpose(current.tom, shift, flats);
+    const translated = traducoes.has(current.id);
     const used = [];
-    const sheet = renderSheet(current.cifra, shift, flats, used);
+    const sheet = renderSheet(traducoes.get(current.id) || current.cifra, shift, flats, used);
     const label = shift ? ` (${shift > 0 ? '+' : ''}${shift})` : '';
 
     song.innerHTML = `
@@ -760,8 +830,10 @@
           <b id="speed">${speed}</b>
           <button data-act="faster" aria-label="Mais rápido">+</button>
         </div>
+        <button data-act="translate" ${traduzindo ? 'disabled' : ''}>${traduzindo ? 'Traduzindo…' : translated ? 'Ver original' : 'Traduzir p/ inglês'}</button>
         <button data-act="chords" aria-pressed="${showChords}">Acordes</button>
       </div>
+      ${erroTraducao ? `<p class="notice">${esc(erroTraducao)}</p>` : ''}
       <div class="diagrams" ${showChords ? '' : 'hidden'}>${used.map(diagram).join('')}</div>
       <div class="sheet">${sheet}</div>`;
   }
@@ -859,6 +931,7 @@
       store.set('velocidade', speed);
       $('speed').textContent = speed;
     }
+    else if (act === 'translate') void alternarTraducao();
     else if (act === 'chords') {
       showChords = !showChords;
       store.set('diagramas', showChords);
