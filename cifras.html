@@ -355,6 +355,10 @@
      Assim, [Em] em "l[Em]ooking" não abre espaço dentro da palavra. */
   .seg { display: inline-flex; flex-direction: column; position: relative; padding-top: 1.35em; white-space: pre; }
   .seg i { position: absolute; top: 0; left: 0; min-height: 1.35em; white-space: nowrap; }
+  /* Acorde logo seguido de outro acorde, sem palavra no meio (como em "h[E7M]oje  [A7M]"): reserva a
+     largura do próprio acorde, para os dois não ficarem um em cima do outro. */
+  .seg.solo { display: inline-grid; padding-top: 0; }
+  .seg.solo i { position: static; padding-right: .7em; }
   .tab {
     font-family: ui-monospace, Menlo, Consolas, monospace;
     font-size: .85em;
@@ -524,13 +528,13 @@
       if (/\[[^\]]+\]/.test(line)) {
         // Cada acorde fica preso à primeira palavra seguinte; as demais palavras viram
         // blocos próprios para a linha poder quebrar entre palavras no celular.
-        const seg = (chord, text) => `<span class="seg"><i>${chord}</i><span>${esc(text) || ' '}</span></span>`;
+        const seg = (chord, text, junto) => `<span class="seg${junto && !/\S$/.test(text) ? ' solo' : ''}"><i>${chord}</i><span>${esc(text) || ' '}</span></span>`;
         const words = text => text.match(/\S+\s*|\s+/g) || [];
         const parts = line.split(/\[([^\]]+)\]/);
         let html = words(parts[0]).map(w => seg('', w)).join('');
         for (let i = 1; i < parts.length; i += 2) {
           const [first = '', ...rest] = words(parts[i + 1]);
-          html += seg(ch(parts[i]), first) + rest.map(w => seg('', w)).join('');
+          html += seg(ch(parts[i]), first, !rest.length && i + 2 < parts.length) + rest.map(w => seg('', w)).join('');
         }
         return `<div class="row">${html}</div>`;
       }
