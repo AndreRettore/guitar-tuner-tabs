@@ -7,3 +7,6 @@ musicas/*
 
 # Arquivos do macOS
 .DS_Store
+
+# Segredos locais usados apenas nos testes.
+.env

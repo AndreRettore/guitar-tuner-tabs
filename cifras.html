@@ -298,8 +298,10 @@
   .ly { white-space: pre-wrap; }
   .gap { height: .8em; }
   .row { display: flex; flex-wrap: wrap; align-items: flex-end; margin: .15em 0; }
-  .seg { display: inline-flex; flex-direction: column; white-space: pre; }
-  .seg i { min-height: 1.35em; padding-right: .5em; }
+  /* O acorde fica visualmente acima da letra, mas não define a largura do trecho.
+     Assim, [Em] em "l[Em]ooking" não abre espaço dentro da palavra. */
+  .seg { display: inline-flex; flex-direction: column; position: relative; padding-top: 1.35em; white-space: pre; }
+  .seg i { position: absolute; top: 0; left: 0; min-height: 1.35em; white-space: nowrap; }
   .tab {
     font-family: ui-monospace, Menlo, Consolas, monospace;
     font-size: .85em;
@@ -468,7 +470,7 @@
       if (/^[eBGDAE]\|/.test(trimmed)) return `<div class="tab">${esc(line)}</div>`;
       if (/\[[^\]]+\]/.test(line)) {
         // Cada acorde fica preso à primeira palavra seguinte; as demais palavras viram
-        // blocos próprios para a linha poder quebrar entre palavras no celular
+        // blocos próprios para a linha poder quebrar entre palavras no celular.
         const seg = (chord, text) => `<span class="seg"><i>${chord}</i><span>${esc(text) || ' '}</span></span>`;
         const words = text => text.match(/\S+\s*|\s+/g) || [];
         const parts = line.split(/\[([^\]]+)\]/);
